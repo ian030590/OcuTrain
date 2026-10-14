@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "dgSpecHash": "ZEiDg0fT7ug=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\ian\\Desktop\\視覺復能program\\TobiiOculomotor\\TobiiEyeTrainer.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\ian\\.nuget\\packages\\microsoft.net.illink.tasks\\10.0.12\\microsoft.net.illink.tasks.10.0.12.nupkg.sha512",
+    "C:\\Users\\ian\\.nuget\\packages\\microsoft.web.webview2\\1.0.4191.47\\microsoft.web.webview2.1.0.4191.47.nupkg.sha512",
+    "C:\\Users\\ian\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.12\\microsoft.netcore.app.runtime.win-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\ian\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.12\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\ian\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.win-x64.10.0.12.nupkg.sha512"
+  ],
+  "logs": []
+}
