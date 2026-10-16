@@ -11,6 +11,7 @@
 - **WebGazer 取樣與啟動**：以推論開始時間對應刺激歷史畫面，記錄推論開始至回呼的延遲；jsPsych 使用單一預測串流。FaceMesh／BlazeFace 模型與權重隨 EXE 打包，減少遠端下載等待，並改善相機啟動提示及資源釋放。
 - **多螢幕顯示**：使用 PerMonitorV2 DPI 支援、固定 WebView 內容縮放，並依視窗所在螢幕取得全螢幕範圍，改善筆電與外接螢幕使用不同縮放比例時的顯示問題。
 - **原始資料與報表**：補齊 WebGazer 原始樣本、缺失時間及拒收時間戳記錄。CSV 由 19 欄擴充至 25 欄，新增 `target_number`、`accuracy_eligible`、`accuracy_delta_t_ms`、`gaze_velocity_deg_s`、`is_fixation`、`tff_ms`。
+- **專案文件與授權**：新增 README，說明安裝、使用、指標、資料流程與建置方式；新增完整 AGPL-3.0 授權文字，保留第三方元件的原有授權聲明。
 
 資料分析時，`is_within_threshold` 表示原始空間命中，包括排除計分的階段；重建 Accuracy 請使用 `accuracy_delta_t_ms` 作為時間權重，不要以命中樣本比例取代。
 
