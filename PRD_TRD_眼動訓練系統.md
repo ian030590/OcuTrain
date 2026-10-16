@@ -7,7 +7,7 @@
 | :--- | :--- |
 | **文件版本** | v1.3.0 (WebGazer 精度驗證頁面、跨測驗通用校正與 UI 風格標準化版) |
 | **研究員角色** | 資深心理學與認知神經科學研究者 / 系統架構師 |
-| **硬體與資料源** | 1. **Tobii Eye Tracker 5** (原生 C API，33 Hz，專用紅外線感測器)<br>2. **WebGazer.js** (視訊鏡頭機器學習，~30 Hz，支援內建九點校正與五點精度驗證) |
+| **硬體與資料源** | 1. **Tobii Eye Tracker 5** (原生 C API 串流，專用紅外線感測器)<br>2. **WebGazer.js** (視訊鏡頭機器學習，依推論速度取樣，支援內建九點校正與五點精度驗證) |
 | **交付目標** | 單一可直接執行之免安裝綠色程式 (`.exe`)，隨插即用 |
 | **設計基準** | 嚴格繼承 [`眼動訓練.html`](file:///C:/Users/ian/Desktop/視覺復能program/眼動訓練.html) 之視覺風格、UI 與互動邏輯 |
 | **專案子資料夾** | `C:\Users\ian\Desktop\視覺復能program\TobiiOculomotor\` |
@@ -23,7 +23,7 @@
    - 2.4 階層跳視 (Saccade) 200ms 生理潛伏期補償窗
    - 2.5 商業防護與通訊：保留 30 天鎖死與 Discord Webhook
 3. [雙眼動追蹤引擎規格、校正與驗證流程](#3-雙眼動追蹤引擎規格校正與驗證流程)
-   - 3.1 Tobii Eye Tracker 5 模式 (33 Hz 原生串流)
+   - 3.1 Tobii Eye Tracker 5 模式 (SDK 原生串流)
    - 3.2 WebGazer 模式 (九點校正與五點精度驗證)
    - 3.3 全域校正與跨子測驗通用架構 (Cross-Module Calibration Sharing)
    - 3.4 計算方法一致性保障
@@ -33,7 +33,7 @@
    - 4.3 距離閾值計分演算法數學模型
    - 4.4 單一 CSV 數據匯出規範
 5. [技術規格架構 (TRD)](#5-技術規格架構-trd)
-   - 5.1 技術選型決策：.NET 10 + WebView2 + 原生驅動與 WebGazer 雙軌
+   - 5.1 技術選型決策：Tauri 2 + Rust + WebView2 雙軌眼動架構
    - 5.2 WebView2 攝影機授權與跨進程通訊
    - 5.3 系統整體架構圖
    - 5.4 單一檔案 (.exe) 打包與發佈流程
@@ -44,7 +44,7 @@
 ## 1. 研究背景與核心目標
 
 本系統旨在將既有之 [`眼動訓練.html`](file:///C:/Users/ian/Desktop/視覺復能program/眼動訓練.html) 視覺復能架構，升級為具備**雙軌眼動追蹤引擎**的專業級臨床復能訓練系統：
-1. **Tobii Eye Tracker 5 原生模式**：以無損 33 Hz 專用眼動儀提供極高精度的視線分析。
+1. **Tobii Eye Tracker 5 原生模式**：接收 SDK 原生眼動串流，保留來源時間戳進行視線分析。
 2. **WebGazer 視訊鏡頭模式**：利用一般電腦 Webcam 進行臉部特徵網格（FaceMesh）與嶺回歸（Ridge Regression）眼動追蹤，並配備**內建九點校正頁面與五點精度驗證 (Validation)**，使無專用硬體的受試者亦能隨時隨地進行復能。
 
 兩大追蹤引擎的**計算方法完全嚴格一致**（視角閾值換算、時間數值積分、眨眼剔除、跳視潛伏期容許、同步數據欄位及 CSV 輸出）。系統封裝為**單一獨立免安裝執行檔 (`OcuTrain_<版本>_x64-portable.exe`)**，隨插即用。
@@ -103,9 +103,9 @@
 ## 3. 雙眼動追蹤引擎規格、校正與驗證流程
 
 ### 3.1 Tobii Eye Tracker 5 模式
-* **採樣率**：33 Hz 硬體原生採樣，透過微秒時間戳記（`device_timestamp_us`）進行高精度黎曼積分。
+* **採樣率**：依 SDK 實際來源時間戳，接收全部原生樣本；不固定重取樣為 33 Hz。透過微秒時間戳記（`device_timestamp_us`）進行時間積分。
 * **校正方式**：在 Windows 系統下的「Tobii Experience」官方應用程式完成硬體眼動校正，訓練系統直接繼承其全域視線空間。
-* **模擬器備援**：若未偵測到 USB 硬體，自動切換至具備微顫與生理眨眼的 33 Hz 模擬器供離線演示。
+* **未連線處理**：未偵測到 USB 硬體時顯示未連線，可改用 WebGazer 或 Off，不產生模擬眼動資料。
 
 ### 3.2 WebGazer 模式：九點校正與五點精度驗證
 * **採樣率**：約 30~34 Hz（由攝影機訊框與 FaceMesh 推論驅動）。
@@ -190,30 +190,21 @@
 
 ## 5. 技術規格架構 (TRD)
 
-### 5.1 技術選型決策：.NET 10 + WebView2 + 雙軌眼動架構
-* **桌面宿主**：C# .NET 10 WinForms + Microsoft Edge WebView2。
-  - 使用 `PerMonitorV2` 動態套用所在螢幕的 DPI，全螢幕範圍於切換前依視窗所在螢幕取得；不指定固定螢幕、解析度或縮放比例。
-* **WebGazer 初始化與取樣**：FaceMesh 與 BlazeFace 模型、權重隨 EXE 內嵌並解壓於本機，校正無須從模型伺服器下載；jsPsych 直接接收 WebGazer 的單一預測串流，避免驗證與訓練同時重複執行臉部推論。
+### 5.1 技術選型決策：Tauri 2 + Rust + WebView2 雙軌眼動架構
+* **桌面宿主**：Tauri 2 + Rust，使用 Windows 系統 Microsoft Edge WebView2，不攜帶 .NET 或 Chromium 執行環境。
+  - 依視窗所在螢幕、視窗內容區域的實體位置與尺寸更新眼動座標；不指定固定螢幕、解析度或縮放比例。Tobii Experience 必須校正在同一螢幕上。
+* **WebGazer 初始化與取樣**：FaceMesh 與 BlazeFace 模型、權重隨 EXE 內嵌，透過 Tauri 本機資源協定讀取，校正無須從模型伺服器下載；jsPsych 直接接收 WebGazer 的單一預測串流，避免驗證與訓練同時重複執行臉部推論。
   - 模型來源：[FaceMesh v1](https://tfhub.dev/mediapipe/tfjs-model/facemesh/1/default/1)、[BlazeFace v1](https://tfhub.dev/tensorflow/tfjs-model/blazeface/1/default/1)。
   - WebGazer 保留推論開始時的單調時間戳 `sample_performance_ms`，以此配對刺激歷史畫面；jsPsych 的測驗相對時間 `t` 與結果送達時間不作為來源時間。
   - CSV 的 `transport_delay_ms` 在 WebGazer 模式表示「推論開始至回呼送達」的耗時，未包含鏡頭曝光／擷取及濾波延遲；來源時間不可用時回退為回呼時間，延遲留空。這不是鏡頭至螢幕的完整延遲量測。
 * **通訊機制**：
-  - Tobii 訊號：C# 背景執行緒調用 `tobii_stream_engine.dll`，透過 `PostWebMessageAsJson` 高速推送到前端。
+  - Tobii 訊號：Rust 背景執行緒調用 `tobii_stream_engine.dll`，透過 Tauri 的 `tobii-gaze`、`tobii-status` 事件傳送至前端；保留全部原生樣本與 SDK 時間戳，不固定重取樣。
+  - 時鐘：原生執行緒序列處理 SDK clock 請求，前端五次探測取最低往返時間，以中點估算 SDK clock 與 `performance.now()` 的偏移，並記錄往返時間一半的估計不確定性。每 30 秒呼叫 SDK timesync。
   - WebGazer 訊號：前端 WebGazer.js 透過 `jsPsychExtensionWebgazer.onGazeUpdate` 直接推送，全流程無須經由網路協定。
-  - 存檔橋接：透過 `window.chrome.webview.hostObjects.sync.TobiiBridge.SaveCsv` 直接將報告寫入本機硬碟。
+  - 存檔橋接：透過 Tauri `save_document` 命令非同步寫入 EXE 旁 `Data/`，只允許 CSV／JSON 檔名；CSV 使用 UTF-8 BOM，失敗時顯示錯誤並保留工作階段供重試。
 
 ### 5.2 WebView2 攝影機授權
-為免除使用者操作視訊鏡頭時被瀏覽器權限阻擋，C# 宿主於啟動時監聽：
-```csharp
-_webView.CoreWebView2.PermissionRequested += (s, args) =>
-{
-    if (args.PermissionKind == CoreWebView2PermissionKind.Camera)
-    {
-        args.State = CoreWebView2PermissionState.Allow;
-    }
-};
-```
-受試者無需任何權限確認即可流暢啟動鏡頭。
+Rust 宿主只自動授予主視窗 `https://tauri.localhost` 本機頁面的相機請求；其他來源沿用系統預設權限。Windows 的相機隱私設定仍需允許桌面程式存取。
 
 ### 5.3 系統整體架構圖
 
@@ -225,10 +216,10 @@ flowchart TD
             CameraFeed["Webcam 視訊鏡頭 (WebGazer)"]
         end
 
-        subgraph BridgeLayer ["C# 宿主橋接層 (HostObject & IPC)"]
-            NativeWorker["33 Hz 原生背景線程"]
-            HostBridge["TobiiBridge (COM Export)"]
-            PermManager["攝影機權限自動授予器"]
+        subgraph BridgeLayer ["Tauri 2 / Rust 宿主橋接層"]
+            NativeWorker["SDK 原生背景執行緒與時鐘"]
+            HostBridge["Tauri Events / Commands"]
+            PermManager["本機頁面攝影機權限"]
             
             TobiiDLL --> NativeWorker --> HostBridge
             CameraFeed --> PermManager
@@ -236,7 +227,7 @@ flowchart TD
 
         subgraph ViewLayer ["前端渲染視圖 (Microsoft WebView2)"]
             WebView["WebView2 (Chromium Engine)"]
-            HostBridge -->|PostWebMessageAsJson / SaveCsv| WebView
+            HostBridge -->|tobii-gaze / save_document| WebView
             
             subgraph DualGazeEngine ["雙軌眼動與刺激渲染系統"]
                 WebGazerScript["WebGazer.js (FaceMesh / Ridge)"]
@@ -260,6 +251,6 @@ flowchart TD
 
 ## 6. 驗證與品質保證
 
-1. **單檔可攜性**：`OcuTrain_<版本>_x64-portable.exe` 內嵌原生 dll 與所有網頁/模型資源，初次運行於新環境時自動解壓就緒。
-2. **取樣波動容錯性**：硬體時鐘與時間積分能妥善應對 33 Hz / 30 Hz 之微小抖動與短暫丟包。
-3. **無硬體相容**：無論是無 Tobii 專用硬體（自動啟用模擬器或改用 WebGazer），或是無網路環境（自動回退本機時鐘），系統皆可穩定運作。
+1. **單檔可攜性**：`OcuTrain_<版本>_x64-portable.exe` 內嵌原生 DLL 與所有網頁／模型資源；僅 DLL 需快取至使用者應用程式資料夾。
+2. **取樣波動容錯性**：依來源時間戳處理不同採樣頻率的間隔、抖動與缺口；超過 100 ms 的缺口不當作整段有效注視。
+3. **無硬體相容**：無 Tobii 專用硬體時顯示未連線，可改用 WebGazer 或 Off，不以模擬資料替代實際眼動；無網路時間時沿用既有本機時鐘檢查。

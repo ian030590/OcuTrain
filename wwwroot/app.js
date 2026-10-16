@@ -1,6 +1,6 @@
 
     // ════════════════════════════════════════════════════
-    // Tobii Native Host Bridge Listener (33 Hz Native Stream)
+    // Tobii native SDK events preserve the original stream timestamps.
     // ════════════════════════════════════════════════════
 
 
@@ -231,7 +231,7 @@
       ? `${bridgeProtocol}//${bridgeHost}/gaze?token=${encodeURIComponent(bridgeToken)}`
       : null;
     const injectedBridgeClient = window.TobiiBridge || null;
-    const nativeBridge = window.isTobiiNativeHost && window.chrome?.webview?.hostObjects?.TobiiBridge;
+    const nativeBridge = window.OcuTrainDesktop;
 
     const MODULES = {
       vor: {
@@ -1453,7 +1453,7 @@
               <strong>${module.code} ${completed ? "Session Completed" : "Session Interrupted"} · Accuracy: <span style="color:var(--lime, #63e6ff); font-size:1.15em; font-weight:900;">${acc}</span></strong>
               <span>${reasonLabels[session.end_reason] || session.end_reason} · In-target: <strong>${inSec}</strong> / Valid: <strong>${validSec}</strong> · Threshold: ${session.threshold_deg || 1.5}°</span>
               ${session.module === "saccade" ? `<span>Mean TFF: <strong>${session.tff_mean_ms != null ? session.tff_mean_ms + " ms" : "N/A"}</strong> · Detected: ${session.tff_detected_targets || 0} / ${session.tff_total_targets || 0} targets</span>` : ""}
-              <span style="color:var(--muted, #888); font-size:12px;">Single CSV report automatically saved to Data/ folder</span>
+              <span data-save-status style="color:var(--muted, #888); font-size:12px;">${window.OcuTrainDesktop ? desktopSaveStatus() : "CSV report downloaded"}</span>
             </div>
           </div>
           <div style="display:flex; gap:8px; flex-shrink:0;">
@@ -1890,7 +1890,10 @@
         if (typeof element.requestFullscreen === "function") {
           const result = element.requestFullscreen({ navigationUI: "hide" });
           return Promise.resolve(result)
-            .then(() => Boolean(document.fullscreenElement))
+            .then(async () => {
+              if (window.OcuTrainDesktop) await window.OcuTrainDesktop.FullscreenReady();
+              return Boolean(document.fullscreenElement);
+            })
             .catch(() => false);
         }
         if (typeof element.webkitRequestFullscreen === "function") {
@@ -1906,6 +1909,9 @@
     }
 
     function downloadJson(data, filename) {
+      if (window.OcuTrainDesktop) {
+        return saveDesktopDocument(filename, JSON.stringify(data, null, 2));
+      }
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
@@ -2139,36 +2145,23 @@
         const exportCsvButton = displayElement.querySelector("[data-export-csv]");
         if (exportCsvButton) {
           exportCsvButton.addEventListener("click", () => {
+            if (window.OcuTrainDesktop && AppState.lastCsvReport) {
+              saveDesktopDocument(AppState.lastCsvReport.filename, AppState.lastCsvReport.content);
+              return;
+            }
             const stamp = new Date().toISOString().replace(/[:.]/g, "-");
             const sid = AppState.lastSession && AppState.lastSession.session_id;
             const dataObj = sid ? window.jsPsychInstance.data.get().filter({ session_id: sid }) : window.jsPsychInstance.data.get();
             const csvData = dataObj.csv();
-            const blob = new Blob([csvData], { type: "text/csv;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-            const anchor = document.createElement("a");
-            anchor.href = url;
-            anchor.download = `${subjectId}_eye-training-${AppState.lastSession.module}-${stamp}.csv`;
-            anchor.style.display = "none";
-            document.body.appendChild(anchor);
-            anchor.click();
-            anchor.remove();
-            window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            triggerFileDownload(`${subjectId}_eye-training-${AppState.lastSession.module}-${stamp}.csv`, csvData);
           });
         }
 
         const openDataFolderBtn = displayElement.querySelector("[data-open-data-folder]");
         if (openDataFolderBtn) {
           openDataFolderBtn.addEventListener("click", () => {
-            if (window.chrome && window.chrome.webview && window.chrome.webview.hostObjects) {
-              try {
-                if (window.chrome.webview.hostObjects.sync && window.chrome.webview.hostObjects.sync.TobiiBridge) {
-                  window.chrome.webview.hostObjects.sync.TobiiBridge.OpenDataFolder();
-                } else if (window.chrome.webview.hostObjects.TobiiBridge) {
-                  window.chrome.webview.hostObjects.TobiiBridge.OpenDataFolder();
-                }
-              } catch (e) {
-                console.error("OpenDataFolder failed:", e);
-              }
+            if (window.OcuTrainDesktop) {
+              window.OcuTrainDesktop.OpenDataFolder().catch(error => alert(`Could not open Data folder: ${error}`));
             } else {
               alert("Local Data/ folder is located in the application directory under Data.");
             }
@@ -2888,7 +2881,31 @@
       return `"${str.replace(/"/g, '""')}"`;
     }
 
+    function desktopSaveStatus() {
+      const result = AppState.desktopSave;
+      if (result?.error) return "Save failed. Use Export CSV to retry.";
+      if (result?.path) return "Report saved to Data/ folder";
+      return "Saving report to Data/ folder…";
+    }
+
+    async function saveDesktopDocument(filename, content) {
+      const status = () => document.querySelector("[data-save-status]");
+      const result = AppState.desktopSave = { filename, path: null, error: null };
+      try {
+        const path = await window.OcuTrainDesktop.SaveCsv(filename, content);
+        result.path = path;
+        if (status()) status().textContent = desktopSaveStatus();
+        return path;
+      } catch (error) {
+        result.error = String(error);
+        if (status()) status().textContent = desktopSaveStatus();
+        alert(`Could not save ${filename}: ${error}. Keep this window open and use Export to retry.`);
+        return null;
+      }
+    }
+
     function triggerFileDownload(filename, textContent) {
+      if (window.OcuTrainDesktop) return saveDesktopDocument(filename, textContent);
       try {
         const blob = new Blob(["\uFEFF" + textContent], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
@@ -2974,7 +2991,7 @@
       const samplingRateText = eyeTrackingSource === EYE_SOURCE_WEBGAZER
         ? "~30 Hz (Dynamic Webcam Sampling)"
         : eyeTrackingSource === EYE_SOURCE_TOBII
-          ? "33 Hz (Synchronous Native Timing)"
+          ? "Native SDK stream (source timestamps; no resampling)"
           : "N/A";
 
       const sourceTag = eyeTrackingSource === EYE_SOURCE_WEBGAZER ? "WebGazer" : eyeTrackingSource === EYE_SOURCE_TOBII ? "Tobii" : "Untracked";
@@ -3096,24 +3113,12 @@
         ...rowLines
       ].join("\r\n");
 
-      // If running in .NET WebView2 environment, persist directly to local Data/ directory
-      let savedNatively = false;
-      if (window.chrome && window.chrome.webview && window.chrome.webview.hostObjects) {
-        try {
-          if (window.chrome.webview.hostObjects.sync && window.chrome.webview.hostObjects.sync.TobiiBridge) {
-            window.chrome.webview.hostObjects.sync.TobiiBridge.SaveCsv(csvFilename, fullCsvContent);
-            savedNatively = true;
-          } else if (window.chrome.webview.hostObjects.TobiiBridge) {
-            window.chrome.webview.hostObjects.TobiiBridge.SaveCsv(csvFilename, fullCsvContent);
-            savedNatively = true;
-          }
-        } catch (e) {
-          console.error("Native SaveCsv failed:", e);
-        }
+      if (window.OcuTrainDesktop) {
+        AppState.lastCsvReport = { filename: csvFilename, content: fullCsvContent };
+        return saveDesktopDocument(csvFilename, fullCsvContent);
       }
-      if (!savedNatively && !window.isTobiiNativeHost) {
-        triggerFileDownload(csvFilename, fullCsvContent);
-      }
+
+      triggerFileDownload(csvFilename, fullCsvContent);
     }
 
     class EyeTrainingPlugin {
@@ -3557,7 +3562,7 @@
               calibrated_at: eyeTracking.calibratedAt || null,
               library: eyeTracking.source === EYE_SOURCE_WEBGAZER
                 ? "WebGazer via jsPsych extension-webgazer"
-                : usesTobii ? (nativeBridge ? "Native Tobii WebView2 Bridge" : "Local Tobii WebSocket Bridge") : null,
+                : usesTobii ? (nativeBridge ? "Tauri 2 Tobii Bridge" : "Local Tobii WebSocket Bridge") : null,
               provider: usesTobii ? AppState.tobii.provider : (usesWebGazer ? "WebGazer" : null),
               provider_mode: usesTobii ? AppState.tobii.providerMode : (usesWebGazer ? "webcam" : null),
               sampling_interval_ms: eyeTracking.source === EYE_SOURCE_WEBGAZER ? 34 : usesTobii ? TOBII_SAMPLE_INTERVAL_MS : null,

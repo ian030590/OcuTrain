@@ -1,0 +1,15 @@
+{
+  "name": "ocutrain",
+  "version": "1.2.0",
+  "private": true,
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle && node scripts/package-portable.cjs",
+    "test": "node --test tests/*.test.cjs",
+    "test:native": "cargo test --manifest-path src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

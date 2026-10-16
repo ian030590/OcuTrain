@@ -1,6 +1,6 @@
 # OcuTrain
 
-以 Tobii Eye Tracker 5 或 WebGazer 進行眼動訓練與記錄的 Windows 桌面程式。提供 VOR、Smooth Pursuit、Fixation 與 Saccade 四種模組，使用實體螢幕尺寸與觀看距離換算視角，並以來源時間戳對應刺激畫面。
+以 Tobii Eye Tracker 5 或 WebGazer 進行眼動訓練與記錄的 Windows 桌面程式，桌面宿主使用 **Tauri 2、Rust 與系統 WebView2**。提供 VOR、Smooth Pursuit、Fixation 與 Saccade 四種模組，使用實體螢幕尺寸與觀看距離換算視角，並以來源時間戳對應刺激畫面。
 
 [下載最新版](https://github.com/ian030590/OcuTrain/releases/latest) · [版本更新說明](RELEASE_NOTES.md) · [AGPL-3.0 授權](LICENSE)
 
@@ -13,13 +13,15 @@
 
 ## 開始使用
 
-1. 從 [Releases](https://github.com/ian030590/OcuTrain/releases) 下載 `OcuTrain_1.1.0_x64-portable.exe`（免安裝版），放在可寫入的資料夾後執行。首次啟動會在執行檔旁解壓網頁資源與 Tobii 元件。
+1. 使用 `OcuTrain_<版本>_x64-portable.exe`（免安裝版），放在可寫入的資料夾後執行。Tauri 版將網頁與模型內嵌於執行檔；Tobii DLL 首次啟動時快取於使用者的應用程式資料夾。已發布版本見 [Releases](https://github.com/ian030590/OcuTrain/releases)。
 2. 將視窗移至實際測試的螢幕。在 **Distance Setting** 輸入該螢幕的實體寬度、高度及觀看距離。Windows 縮放比例由程式處理，實體尺寸仍需正確設定。
 3. 選擇 Tobii、WebGazer 或 Off。WebGazer 先完成相機定位與九點校正，再依畫面進行五點驗證。
 4. 選擇模組、方向、刺激大小與時間等參數後開始。Evaluation 使用固定序列；Predictable 與 Random 依設定總時間結束。
 5. 測驗以全螢幕執行，按 **Esc** 可中止。完成後可查看結果、開啟資料夾，或匯出 JSON／CSV。
 
-使用筆電搭配外接螢幕時，先在預定測試螢幕上設定與校正；測驗中視窗尺寸改變可能使測驗中止。
+使用筆電搭配外接螢幕時，先在預定測試螢幕上設定與校正；Tobii Experience 的校正螢幕也必須是同一個螢幕。宿主依視窗所在螢幕與實體像素更新座標，不寫死解析度或縮放比例。測驗中視窗尺寸改變可能使測驗中止。
+
+從 v1.1.0 升級至 Tauri 版時，請重新設定螢幕尺寸、觀看距離與校正；原有 `Data/` CSV 可繼續保留。
 
 ## 模組與指標
 
@@ -58,34 +60,35 @@ TFF 使用注視的開始時間，不包含等待確認的時間，也不受 Acc
 
 ## 從原始碼建置
 
-需要 Windows、.NET 10 SDK，以及執行測試用的 Node.js。
+需要 Windows x64、Node.js、Rust stable（MSVC toolchain）、Visual Studio C++ Build Tools 與 Windows SDK。完整需求見 [Tauri 官方文件](https://v2.tauri.app/start/prerequisites/)。不需要 .NET SDK。
 
 ```powershell
 git clone https://github.com/ian030590/OcuTrain.git
 cd OcuTrain
-dotnet restore TobiiEyeTrainer.csproj -r win-x64
-dotnet publish TobiiEyeTrainer.csproj -c Release -r win-x64 --self-contained true
+npm ci
+npm run build
 ```
 
-發布檔位於 `bin/Release/net10.0-windows/win-x64/publish/`，檔名自動採用 `OcuTrain_<版本>_x64-portable.exe`。專案會將網頁、模型與 Tobii DLL 內嵌於單一執行檔。
+發布檔位於 `dist/`，檔名自動採用 `OcuTrain_<版本>_x64-portable.exe`。專案會將網頁、模型與 Tobii DLL 內嵌於單一執行檔，不攜帶 .NET 或 Chromium 執行環境。開發時使用 `npm run dev`。
 
 執行自動測試：
 
 ```powershell
-node --test tests/tobii-bridge.test.cjs tests/webgazer-runtime.test.cjs
+npm test
+npm run test:native
 ```
 
 ## 專案結構
 
-- [Form1.cs](Form1.cs)：WebView2 宿主、DPI、全螢幕與相機權限。
-- [TobiiDevice.cs](TobiiDevice.cs)、[TobiiBridge.cs](TobiiBridge.cs)：原生追蹤串流、時鐘與資料儲存。
+- [src-tauri/](src-tauri/)：Tauri 2 宿主、Tobii 原生串流與 SDK 時鐘、DPI、全螢幕及檔案儲存。
+- [wwwroot/desktop.js](wwwroot/desktop.js)：Tauri 事件與命令橋接。
 - [wwwroot/app.js](wwwroot/app.js)：校正、刺激、計分、TFF 與匯出。
 - [tests/](tests/)：追蹤橋接、時間對齊、計分與 WebGazer 執行測試。
 - [產品與技術規格](PRD_TRD_眼動訓練系統.md)：參數與計算細節。
 
 ## 版本與授權
 
-版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`。
+版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`，Windows Tauri 2 遷移為 `v1.2.0`。
 
 Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git tag 使用 `v<版本>`。
 

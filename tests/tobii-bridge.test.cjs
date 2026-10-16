@@ -6,15 +6,15 @@ const { test } = require("node:test");
 
 const root = path.resolve(__dirname, "..");
 const appSource = fs.readFileSync(path.join(root, "wwwroot/app.js"), "utf8");
-const nativeListener = fs.readFileSync(path.join(root, "Form1.cs"), "utf8")
-  .match(/AddScriptToExecuteOnDocumentCreatedAsync\(@"([\s\S]*?)"\);/)[1];
+const desktopAdapter = fs.readFileSync(path.join(root, "wwwroot/desktop.js"), "utf8");
 
-function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false } = {}) {
+function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false, saveError = null } = {}) {
   const storage = new Map();
   const timers = new Map();
   const frames = new Map();
   const handlers = new Map();
   const savedCsvs = [];
+  const alerts = [];
   let now = 1000;
   let nextId = 0;
   let clockReads = 0;
@@ -26,14 +26,17 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
   const host = {
     GetStatusJson: async () => JSON.stringify({ connected, simulated: false,
       deviceName: "Tobii Eye Tracker 5", coordinateSpace: "normalized",
-      lastError: connected ? null : "Device not detected" }),
+      providerMode: "tauri", lastError: connected ? null : "Device not detected" }),
     GetClockJson: async () => {
       if (clockError) throw new Error("Clock unavailable");
       const before = now;
       now += clockRoundTrips[clockReads++] || 0;
       return JSON.stringify({ systemTimestampMicroseconds: ((before + now) / 2 + hostClockOriginMs) * 1000 });
     },
-    SaveCsv: (filename, content) => savedCsvs.push({ filename, content })
+    SaveCsv: (filename, content) => {
+      if (saveError) throw new Error(saveError);
+      savedCsvs.push({ filename, content });
+    }
   };
   const document = {
     querySelector: () => null,
@@ -52,16 +55,24 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
     setTimeout: schedule, clearTimeout: id => timers.delete(id),
     setInterval: schedule, clearInterval: id => timers.delete(id),
     TobiiBridge: injectedClient,
-    ...(native ? { chrome: { webview: {
-      addEventListener: (name, handler) => handlers.set(name, handler),
-      hostObjects: { TobiiBridge: host, sync: { TobiiBridge: host } }
-    } } } : {})
+    ...(native ? { __TAURI__: {
+      event: { listen: async (name, handler) => { handlers.set(name, handler); return () => handlers.delete(name); } },
+      core: { invoke: async (command, args) => {
+        if (command === "get_status") return JSON.parse(await host.GetStatusJson());
+        if (command === "get_clock") return JSON.parse(await host.GetClockJson());
+        if (command === "save_document") {
+          host.SaveCsv(args.filename, args.content);
+          return `Data/${args.filename}`;
+        }
+        throw new Error(`Unexpected command: ${command}`);
+      } }
+    } } : {})
   };
   const jsPsych = { extensions: {}, run() {}, data: { addProperties() {} },
     pluginAPI: { getKeyboardResponse() {}, cancelKeyboardResponse() {},
       clearAllTimeouts() {}, setTimeout: schedule }, finishTrial() {} };
   const context = vm.createContext({ window, document, localStorage: window.localStorage,
-    navigator: { onLine: false }, console, URLSearchParams,
+    navigator: { onLine: false }, console, URLSearchParams, alert: message => alerts.push(message),
     performance: { now: () => now },
     fetch: async () => ({ json: async () => ({ datetime: new Date().toISOString() }) }),
     setTimeout: schedule, clearTimeout: id => timers.delete(id),
@@ -70,16 +81,17 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
     cancelAnimationFrame: id => frames.delete(id),
     jsPsychModule: { ParameterType: {} }, initJsPsych: () => jsPsych
   });
-  if (native) vm.runInContext(nativeListener, context);
+  if (native) vm.runInContext(desktopAdapter, context);
   // Expose the real closure without changing the production application's API.
   vm.runInContext(appSource.replace("    jsPsych.run([", `
     window.testApi = { AppState, beginTobiiTrial, finishTobiiTrial, finishWebGazerTrial,
       connectTobiiBridge, bindInjectedTobiiClient, EyeTrainingPlugin, GazeValidationPlugin,
-      OptionalWebGazerCameraPlugin, createCalibration, sessionBanner, saccadeFixationSummary };
+      OptionalWebGazerCameraPlugin, createCalibration, sessionBanner, saccadeFixationSummary,
+      saveDesktopDocument, desktopSaveStatus };
     jsPsych.run([`), context);
-  return { window, document, jsPsych, timers, frames, savedCsvs, api: window.testApi,
+  return { window, document, jsPsych, timers, frames, savedCsvs, alerts, api: window.testApi,
     setNow: value => { now = value; },
-    emit: payload => handlers.get("message")({ data: payload }),
+    emit: payload => handlers.get(payload.type === "status" ? "tobii-status" : "tobii-gaze")({ payload }),
     runTimer(delay) {
       const entry = [...timers].find(([, timer]) => timer.delay === delay);
       assert.ok(entry, `Expected a ${delay} ms timer`);
@@ -103,12 +115,12 @@ test("native status reflects a physical connection and a missing device", async 
     const app = loadApp({ connected });
     assert.equal(app.api.AppState.tobii.connected, false);
     assert.equal(await app.api.connectTobiiBridge(), connected);
-    assert.equal(app.api.AppState.tobii.providerMode, "native");
+    assert.equal(app.api.AppState.tobii.providerMode, "tauri");
   }
   assert.equal(await loadApp({ native: false }).api.connectTobiiBridge(), false);
 });
 
-test("WebView2 messages reach the active recorder and retain device timestamps", () => {
+test("Tauri events reach the active recorder and retain device timestamps", () => {
   const app = loadApp();
   const capture = app.api.beginTobiiTrial("trial");
   assert.equal(capture, app.api.AppState.tobii.activeTrial);
@@ -120,6 +132,22 @@ test("WebView2 messages reach the active recorder and retain device timestamps",
   assert.equal(capture.samples[0].x, 960);
   assert.equal(capture.samples[0].y, 540);
   assert.equal(capture.samples[0].device_timestamp_us, 123456789);
+});
+
+test("native save completion survives menu rendering and write failures remain retryable", async () => {
+  const app = loadApp();
+  const saving = app.api.saveDesktopDocument("report.csv", "x,y\n1,2");
+  assert.match(app.api.desktopSaveStatus(), /Saving/);
+  await saving;
+  assert.match(app.api.sessionBanner({ module: "vor", end_reason: "duration_complete" }), /Report saved to Data/);
+  const failed = loadApp({ saveError: "Access denied" });
+  const finish = startTraining(failed, "off");
+  finish();
+  await new Promise(setImmediate);
+  assert.match(failed.api.AppState.lastCsvReport.content, /Stimulus/);
+  assert.equal(failed.savedCsvs.length, 0);
+  assert.match(failed.api.desktopSaveStatus(), /Save failed/);
+  assert.match(failed.alerts[0], /Access denied/);
 });
 
 test("missing or non-finite coordinates cannot become valid gaze at zero", () => {

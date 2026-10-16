@@ -1,0 +1,10 @@
+const fs = require("node:fs");
+const path = require("node:path");
+const config = require("../src-tauri/tauri.conf.json");
+const root = path.resolve(__dirname, "..");
+const destination = path.join(root, "dist", `OcuTrain_${config.version}_x64-portable.exe`);
+fs.mkdirSync(path.dirname(destination), { recursive: true });
+fs.copyFileSync(path.join(root, "src-tauri/target/release/ocutrain.exe"), destination);
+fs.copyFileSync(path.join(root, "LICENSE"), path.join(root, "dist/LICENSE"));
+fs.copyFileSync(path.join(root, "README.md"), path.join(root, "dist/README.md"));
+console.log(destination);
