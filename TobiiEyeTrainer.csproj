@@ -36,4 +36,10 @@
     </None>
   </ItemGroup>
 
+  <Target Name="NameReleaseExecutable" AfterTargets="Publish" Condition="'$(PublishSingleFile)' == 'true' And '$(RuntimeIdentifier)' == 'win-x64'">
+    <Copy SourceFiles="$(PublishDir)$(AssemblyName).exe"
+          DestinationFiles="$(PublishDir)OcuTrain_$(Version)_x64-setup.exe"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
