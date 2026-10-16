@@ -6,4 +6,4 @@
 
 CSV 擴充為 25 欄。`is_within_threshold` 僅表示空間命中；重算 Accuracy 請使用 `accuracy_delta_t_ms` 作時間權重。
 
-下載附件 `OcuTrain_1.1.0_x64-setup.exe`（Windows x64 免安裝版；需 Microsoft Edge WebView2 Runtime）。
+下載附件 `OcuTrain_1.1.0_x64-portable.exe`（Windows x64 免安裝版；需 Microsoft Edge WebView2 Runtime）。

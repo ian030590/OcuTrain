@@ -13,7 +13,7 @@
 
 ## 開始使用
 
-1. 從 [Releases](https://github.com/ian030590/OcuTrain/releases) 下載 `OcuTrain_1.1.0_x64-setup.exe`（免安裝版），放在可寫入的資料夾後執行。首次啟動會在執行檔旁解壓網頁資源與 Tobii 元件。
+1. 從 [Releases](https://github.com/ian030590/OcuTrain/releases) 下載 `OcuTrain_1.1.0_x64-portable.exe`（免安裝版），放在可寫入的資料夾後執行。首次啟動會在執行檔旁解壓網頁資源與 Tobii 元件。
 2. 將視窗移至實際測試的螢幕。在 **Distance Setting** 輸入該螢幕的實體寬度、高度及觀看距離。Windows 縮放比例由程式處理，實體尺寸仍需正確設定。
 3. 選擇 Tobii、WebGazer 或 Off。WebGazer 先完成相機定位與九點校正，再依畫面進行五點驗證。
 4. 選擇模組、方向、刺激大小與時間等參數後開始。Evaluation 使用固定序列；Predictable 與 Random 依設定總時間結束。
@@ -67,7 +67,7 @@ dotnet restore TobiiEyeTrainer.csproj -r win-x64
 dotnet publish TobiiEyeTrainer.csproj -c Release -r win-x64 --self-contained true
 ```
 
-發布檔位於 `bin/Release/net10.0-windows/win-x64/publish/`，檔名自動採用 `OcuTrain_<版本>_x64-setup.exe`。專案會將網頁、模型與 Tobii DLL 內嵌於單一執行檔。
+發布檔位於 `bin/Release/net10.0-windows/win-x64/publish/`，檔名自動採用 `OcuTrain_<版本>_x64-portable.exe`。專案會將網頁、模型與 Tobii DLL 內嵌於單一執行檔。
 
 執行自動測試：
 
@@ -87,6 +87,6 @@ node --test tests/tobii-bridge.test.cjs tests/webgazer-runtime.test.cjs
 
 版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`。
 
-Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-setup.exe`，Git tag 使用 `v<版本>`。
+Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git tag 使用 `v<版本>`。
 
 本專案採用 **GNU Affero General Public License v3.0（AGPL-3.0）**，完整條文見 [LICENSE](LICENSE)。第三方函式庫、模型及 Tobii 元件保留各自的授權與著作權聲明；本專案授權不會取代其條款。隨附的 WebGazer 保留 GPLv3 聲明，jsPsych 保留 MIT 聲明。
