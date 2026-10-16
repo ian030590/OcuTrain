@@ -207,8 +207,12 @@
     const EYE_SOURCE_TOBII = "tobii";
     const DISPLAY_SETTINGS_KEY = "oculomotor-display-settings-v1";
     const TOBII_SAMPLE_INTERVAL_MS = 0;
-    const TOBII_MAX_SAMPLES_PER_TRIAL = 36000;
+    const MAX_GAZE_SAMPLES_PER_TRIAL = 36000;
     const TOBII_ERROR_ALLOWANCE_DEG = 1;
+    const WEBGAZER_ERROR_ALLOWANCE_DEG = 2;
+    const FIXATION_VELOCITY_DEG_SEC = 30;
+    const FIXATION_MIN_DURATION_MS = 100;
+    const FIXATION_MAX_GAP_MS = 100;
     const WEBGAZER_COMPONENTS_AVAILABLE = Boolean(
       window.webgazer &&
       window.jsPsychExtensionWebgazer &&
@@ -240,7 +244,7 @@
         code: "PURSUIT",
         name: "Smooth Pursuit",
         short: "Linear target tracking",
-        description: "Follow a target moving at a constant speed from the center toward selected screen-edge positions."
+        description: "Follow the target from the center to the screen edge and back. Accuracy includes both movements and excludes the central cross."
       },
       saccade: {
         code: "SACCADE",
@@ -252,7 +256,7 @@
         code: "FIXATION",
         name: "Fixation",
         short: "Movement and edge hold",
-        description: "Follow the target to the screen edge and keep your gaze fixed while it remains there."
+        description: "Follow the target to the screen edge and keep your gaze fixed while it remains there. Accuracy includes only the edge hold."
       }
     };
 
@@ -501,13 +505,125 @@
 
     function gazeThresholds(source, settings, validation = AppState.eyeTracking.lastValidation) {
       const baseDeg = (Number(settings.distanceThresholdArcmin) || 90) / 60;
-      const allowanceDeg = source === EYE_SOURCE_TOBII ? TOBII_ERROR_ALLOWANCE_DEG : 0;
+      const allowanceDeg = source === EYE_SOURCE_TOBII ? TOBII_ERROR_ALLOWANCE_DEG
+        : source === EYE_SOURCE_WEBGAZER ? WEBGAZER_ERROR_ALLOWANCE_DEG : 0;
       const validationDeg = validation?.source === source && Number.isFinite(validation.dynamicThresholdDeg) && validation.dynamicThresholdDeg > 0
         ? validation.dynamicThresholdDeg : null;
       // Validation already includes tracker error; use the larger threshold to avoid adding it twice.
-      const effectiveDeg = source === EYE_SOURCE_TOBII
-        ? Math.max(baseDeg + allowanceDeg, validationDeg || 0) : validationDeg ?? baseDeg;
+      const effectiveDeg = Math.max(baseDeg + allowanceDeg, validationDeg || 0);
       return { baseDeg: round(baseDeg, 2), allowanceDeg, validationDeg, effectiveDeg: round(effectiveDeg, 2) };
+    }
+
+    function accuracyPhaseStart(moduleKey, frame) {
+      if (moduleKey === "pursuit" && !["movement", "return"].includes(frame.phase)) return null;
+      if (moduleKey === "fixation" && frame.phase !== "hold") return null;
+      return frame.phase_started_ms + (moduleKey === "saccade" && frame.phase === "dwell" ? 200 : 0);
+    }
+
+    function accuracyDurationMs(moduleKey, frames, frameIndex, sampleTime, durationMs) {
+      const current = frames[frameIndex];
+      const intervalStart = Math.max(0, sampleTime - durationMs,
+        moduleKey === "saccade" ? current.phase_started_ms : 0);
+      let right = sampleTime;
+      let scoredMs = 0;
+      for (let index = frameIndex; index >= 0 && right > intervalStart; index--) {
+        const frame = frames[index];
+        const left = Math.max(intervalStart, frame.timestamp_ms);
+        const eligibleStart = accuracyPhaseStart(moduleKey, frame);
+        if (eligibleStart !== null) scoredMs += Math.max(0, right - Math.max(left, eligibleStart));
+        right = left;
+      }
+      return scoredMs;
+    }
+
+    function saccadeFixationSummary(records, events, calibration, screenPixels) {
+      const targets = events.filter(event => event.event === "saccade_onset").map(event => ({
+        target_number: event.target_number,
+        direction: event.direction,
+        target_onset_ms: event.actual_ms,
+        fixation_onset_ms: null,
+        fixation_confirmed_ms: null,
+        tff_ms: null,
+        status: "no_valid_samples"
+      }));
+      const byNumber = new Map(targets.map(target => [target.target_number, target]));
+      let target = null;
+      let previous = null;
+      let movementDetected = false;
+      let run = [];
+      let confirmed = false;
+
+      // I-VT-style classification: source-time velocity, not distance from the target.
+      for (const record of records) {
+        record.gaze_velocity_deg_s = "";
+        record.is_fixation = 0;
+        if (!["dwell", "saccade_latency"].includes(record.phase)) {
+          previous = record.gaze_valid ? record : null;
+          continue;
+        }
+        const nextTarget = byNumber.get(record.target_number);
+        if (!nextTarget) continue;
+        if (nextTarget !== target) {
+          target = nextTarget;
+          movementDetected = false;
+          run = [];
+          confirmed = false;
+        }
+        if (!record.gaze_valid) {
+          previous = null;
+          run = [];
+          confirmed = false;
+          continue;
+        }
+        if (target.status === "no_valid_samples") target.status = "no_movement_detected";
+        const deltaMs = previous ? (record.device_timestamp_us - previous.device_timestamp_us) / 1000 : null;
+        if (deltaMs === null || deltaMs <= 0 || deltaMs > FIXATION_MAX_GAP_MS) {
+          run = [record];
+          confirmed = false;
+        } else {
+          const velocity = gazeErrorDegrees(record.gaze_x_px - previous.gaze_x_px,
+            record.gaze_y_px - previous.gaze_y_px, calibration, screenPixels) * 1000 / deltaMs;
+          record.gaze_velocity_deg_s = round(velocity, 3);
+          if (velocity > FIXATION_VELOCITY_DEG_SEC) {
+            movementDetected = true;
+            if (target.tff_ms === null) target.status = "no_confirmed_fixation";
+            run = [record];
+            confirmed = false;
+          } else {
+            run.push(record);
+            if (run.length >= 3 && record.trial_time_ms - run[0].trial_time_ms >= FIXATION_MIN_DURATION_MS) {
+              if (!confirmed) {
+                run.forEach(sample => { sample.is_fixation = 1; });
+                confirmed = true;
+              }
+              record.is_fixation = 1;
+              if (movementDetected && target.tff_ms === null) {
+                target.fixation_onset_ms = run[0].trial_time_ms;
+                target.fixation_confirmed_ms = record.trial_time_ms;
+                target.tff_ms = round(target.fixation_onset_ms - target.target_onset_ms, 2);
+                target.status = "detected";
+              }
+            }
+          }
+        }
+        previous = record;
+      }
+      for (const record of records) {
+        record.tff_ms = ["dwell", "saccade_latency"].includes(record.phase)
+          ? byNumber.get(record.target_number)?.tff_ms ?? "" : "";
+      }
+      const detected = targets.filter(target => target.tff_ms !== null);
+      return {
+        mean_ms: detected.length ? round(detected.reduce((sum, target) => sum + target.tff_ms, 0) / detected.length, 2) : null,
+        detected_targets: detected.length,
+        total_targets: targets.length,
+        velocity_threshold_deg_s: FIXATION_VELOCITY_DEG_SEC,
+        minimum_duration_ms: FIXATION_MIN_DURATION_MS,
+        maximum_gap_ms: FIXATION_MAX_GAP_MS,
+        requires_movement: true,
+        requires_target_hit: false,
+        targets
+      };
     }
 
     function readPositiveNumbers(form, names) {
@@ -693,7 +809,7 @@
       const bridgeMicroseconds = optionalNumber(bridgeField(payload, "monotonicTimestampMicroseconds", "monotonic_timestamp_microseconds"));
       const bridgeTime = directBridgeTime ?? (bridgeMicroseconds === null ? null : bridgeMicroseconds / 1000);
       const sampleClock = bridgeTime ?? receivedAt;
-      if (active.samples.length >= TOBII_MAX_SAMPLES_PER_TRIAL) {
+      if (active.samples.length >= MAX_GAZE_SAMPLES_PER_TRIAL) {
         active.overflow += 1;
         return;
       }
@@ -985,6 +1101,8 @@
         totalBlinkMs: 0,
         totalValidMs: 0,
         totalInThreshMs: 0,
+        missingDurationMs: 0,
+        rejectedTimestampSamples: 0,
         synchronousRecords: [],
         onSample: null
       };
@@ -1008,6 +1126,8 @@
         totalBlinkMs: round(active.totalBlinkMs || 0, 2),
         totalValidMs: round(validMs, 2),
         totalInThreshMs: round(inThreshMs, 2),
+        missingDurationMs: round(active.missingDurationMs || 0, 2),
+        rejectedTimestampSamples: active.rejectedTimestampSamples || 0,
         accuracyRate: accRate
       };
     }
@@ -1332,6 +1452,7 @@
             <div>
               <strong>${module.code} ${completed ? "Session Completed" : "Session Interrupted"} · Accuracy: <span style="color:var(--lime, #63e6ff); font-size:1.15em; font-weight:900;">${acc}</span></strong>
               <span>${reasonLabels[session.end_reason] || session.end_reason} · In-target: <strong>${inSec}</strong> / Valid: <strong>${validSec}</strong> · Threshold: ${session.threshold_deg || 1.5}°</span>
+              ${session.module === "saccade" ? `<span>Mean TFF: <strong>${session.tff_mean_ms != null ? session.tff_mean_ms + " ms" : "N/A"}</strong> · Detected: ${session.tff_detected_targets || 0} / ${session.tff_total_targets || 0} targets</span>` : ""}
               <span style="color:var(--muted, #888); font-size:12px;">Single CSV report automatically saved to Data/ folder</span>
             </div>
           </div>
@@ -1454,7 +1575,7 @@
             <input id="threshold-arcmin" name="distanceThresholdArcmin" data-label="Distance Threshold (arcmin)" type="number" min="10" max="600" step="1" inputmode="decimal" value="${currentThreshArcmin}" required>
             <span class="unit">' (arcmin)</span>
           </div>
-          <p class="field-hint">Tobii adds a ${TOBII_ERROR_ALLOWANCE_DEG}° measurement-error allowance to this setting. A larger 5-point validation threshold takes precedence. WebGazer uses its validation threshold.</p>
+          <p class="field-hint">Tobii adds a ${TOBII_ERROR_ALLOWANCE_DEG}° measurement-error allowance to this setting; WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
         </div>`;
 
       let paramFields = "";
@@ -2373,6 +2494,7 @@
         };
 
         const showFailure = (error) => {
+          clean();
           const message = error && error.message ? error.message : String(error || "Camera access failed.");
           displayElement.innerHTML = `
             <section class="app-page">
@@ -2388,6 +2510,16 @@
           displayElement.querySelector("#webgazer-camera-fallback").addEventListener("click", () => finish(false, message));
           signalLoad();
         };
+
+        displayElement.innerHTML = `
+          <section class="app-page">
+            <div class="app-shell" style="max-width:760px" role="status" aria-live="polite">
+              <p class="eyebrow">WebGazer setup</p>
+              <h1>Starting camera</h1>
+              <p class="lede">Preparing the camera and local eye tracking models. Please wait. First use may take longer.</p>
+            </div>
+          </section>`;
+        signalLoad();
 
         const start = extension && extension.isInitialized()
           ? Promise.resolve()
@@ -2446,8 +2578,6 @@
         let isCollecting = false;
         let countdownInterval = null;
         let ended = false;
-        let rafId = null;
-
         let unsubscribe = null;
         if (isWebGazer && extension && typeof extension.onGazeUpdate === "function") {
           unsubscribe = extension.onGazeUpdate((prediction) => {
@@ -2468,27 +2598,13 @@
           };
         }
 
-        const pollGaze = async () => {
-          if (ended) return;
-          if (isWebGazer && isCollecting && window.webgazer) {
-            try {
-              const pred = await window.webgazer.getCurrentPrediction();
-              if (pred && Number.isFinite(pred.x) && Number.isFinite(pred.y)) {
-                currentSamples.push({ x: pred.x, y: pred.y });
-              }
-            } catch (e) {}
-          }
-          if (!ended) rafId = requestAnimationFrame(pollGaze);
-        };
-        if (isWebGazer) {
-          rafId = requestAnimationFrame(pollGaze);
-        }
-
         const cleanUp = () => {
           ended = true;
           if (pointTimer !== null) clearTimeout(pointTimer);
           if (countdownInterval !== null) clearInterval(countdownInterval);
-          if (rafId !== null) cancelAnimationFrame(rafId);
+          if (isWebGazer && extension) {
+            try { extension.pause(); } catch (error) { /* Continue cleanup. */ }
+          }
           if (unsubscribe) {
             try { unsubscribe(); } catch (e) {}
             unsubscribe = null;
@@ -2609,7 +2725,7 @@
             }
           } else {
             if (passed) {
-              noticeHtml = `<p style="color:var(--lime, #63e6ff); font-size:14px; margin-bottom:18px;">Validation passed. Effective hit threshold: ${thresholdPreview.effectiveDeg}°${isTobii ? `, including a ${TOBII_ERROR_ALLOWANCE_DEG}° Tobii measurement-error allowance where needed` : ""}. Starting training...</p>`;
+              noticeHtml = `<p style="color:var(--lime, #63e6ff); font-size:14px; margin-bottom:18px;">Validation passed. Effective hit threshold: ${thresholdPreview.effectiveDeg}°, including a ${thresholdPreview.allowanceDeg}° ${sourceName} measurement-error allowance where needed. Starting training...</p>`;
               actionButtonsHtml = `
                 <button class="primary-button" type="button" data-val-action="proceed">Start Training (<span id="val-cd-num">3</span>s)</button>
                 <button class="secondary-button" type="button" data-val-action="recalib">${isTobii ? "Re-validate" : "Recalibrate"}</button>`;
@@ -2634,7 +2750,7 @@
                     <span class="webgazer-validate-stat-value ${passed ? "pass" : "fail"}">${meanErrorDeg === null ? "N/A" : meanErrorDeg + "°"}</span>
                   </div>
                   <div class="webgazer-validate-stat-item">
-                    <span class="webgazer-validate-stat-label">Effective Hit Threshold${isTobii ? ` (includes ${TOBII_ERROR_ALLOWANCE_DEG}° allowance)` : " (2× Error)"}</span>
+                    <span class="webgazer-validate-stat-label">Effective Hit Threshold (includes ${thresholdPreview.allowanceDeg}° allowance)</span>
                     <span class="webgazer-validate-stat-value ${hasEnoughData ? "pass" : "fail"}">${hasEnoughData ? `${thresholdPreview.effectiveDeg}° (${effectiveThresholdArcmin}')` : "N/A"}</span>
                   </div>
                   <div class="webgazer-validate-stat-item">
@@ -2844,6 +2960,10 @@
       const totalBlinkMs = gazeCapture.totalBlinkMs || 0;
       const accuracyRate = gazeCapture.accuracyRate != null ? `${gazeCapture.accuracyRate} %` : "N/A (no valid gaze)";
       const records = gazeCapture.synchronousRecords || [];
+      const tff = trialData.tff;
+      const accuracyPhases = moduleKey === "pursuit" ? "Outward and return movement only; central cross excluded"
+        : moduleKey === "fixation" ? "Edge hold only; central cross and movement excluded"
+        : moduleKey === "saccade" ? "Existing scoring phases; first 200 ms of each target excluded" : "All valid tracking time";
 
       const deviceName = eyeTrackingSource === EYE_SOURCE_WEBGAZER
         ? "WebGazer (Webcam Eye Tracking)"
@@ -2884,7 +3004,7 @@
         `# Movement Speed: ${settings.speedArcminSec ? settings.speedArcminSec + " arcmin/s" : "N/A"}`,
         `# Hit Distance Threshold: ${thresholdDeg} deg (${thresholdArcmin} arcmin / approx. ${thresholdPx} px screen radius)`,
         `# GUI Distance Threshold: ${thresholdDetails.baseDeg} deg`,
-        `# Tobii Assumed Measurement-Error Allowance: ${thresholdDetails.allowanceDeg} deg`,
+        `# ${sourceTag} Assumed Measurement-Error Allowance: ${thresholdDetails.allowanceDeg} deg`,
         `# Validation Threshold (2x Mean Error): ${thresholdDetails.validationDeg ?? "N/A"} deg`,
         `# Total Test Duration: ${(actualDurationMs / 1000).toFixed(2)} s`,
         `# Valid Gaze Duration (Denominator): ${(totalValidMs / 1000).toFixed(2)} s`,
@@ -2892,7 +3012,17 @@
         `# On-Target Duration (Numerator): ${(totalInThreshMs / 1000).toFixed(2)} s`,
         `# Gaze Accuracy Rate: ${accuracyRate}`,
         `# Accuracy Definition: On-target duration / valid gaze duration (not hardware calibration accuracy)`,
-        `# Clock Sync Estimated Uncertainty (half RTT): ${gazeCapture.clockUncertaintyMs != null ? round(gazeCapture.clockUncertaintyMs, 3) + " ms" : "N/A (browser receipt time)"}`,
+        `# Accuracy Scoring Phases: ${accuracyPhases}`,
+        `# Accuracy Sample Weight: accuracy_delta_t_ms is the valid interval overlapping scoring phases; is_within_threshold reports raw spatial proximity even during excluded phases`,
+        ...(tff ? [
+          `# Mean Time To First Fixation (TFF): ${tff.mean_ms ?? "N/A"} ms`,
+          `# TFF Detected Targets: ${tff.detected_targets} / ${tff.total_targets}`,
+          `# TFF Definition: Target onset to first fixation onset AFTER detected eye movement; target hit not required; independent of the 200 ms accuracy grace window`,
+          `# TFF Fixation Classifier: I-VT-style; velocity <= ${tff.velocity_threshold_deg_s} deg/s for >= ${tff.minimum_duration_ms} ms and >= 3 valid samples; gaps > ${tff.maximum_gap_ms} ms or invalid samples break fixation`,
+          ...tff.targets.map(target => `# TFF Target ${target.target_number}: ${target.tff_ms ?? "N/A"} ms; direction=${target.direction}; status=${target.status}; target_onset_ms=${target.target_onset_ms}; fixation_onset_ms=${target.fixation_onset_ms ?? "N/A"}; fixation_confirmed_ms=${target.fixation_confirmed_ms ?? "N/A"}`)
+        ] : []),
+        `# Sample Timing Reference: ${eyeTrackingSource === EYE_SOURCE_WEBGAZER ? "WebGazer inference start on the browser performance clock (camera exposure timestamp unavailable); transport_delay_ms measures inference-start to callback delay, excluding camera capture and filtering delay" : eyeTrackingSource === EYE_SOURCE_TOBII ? "Tobii device timestamp mapped to the browser performance clock when synchronized" : "N/A (untracked)"}`,
+        `# Clock Sync Estimated Uncertainty (half RTT): ${gazeCapture.clockUncertaintyMs != null ? round(gazeCapture.clockUncertaintyMs, 3) + " ms" : eyeTrackingSource === EYE_SOURCE_WEBGAZER ? "N/A (same browser performance clock; camera capture delay not measured)" : "N/A (browser receipt time)"}`,
         `# Excluded Missing-Sample Duration: ${((gazeCapture.missingDurationMs || 0) / 1000).toFixed(3)} s`,
         `# Rejected Duplicate/Out-of-Order Timestamps: ${gazeCapture.rejectedTimestampSamples || 0}`,
         `# Enabled Directions: ${selectedDirectionLabels.join(", ") || "All"}`,
@@ -2923,7 +3053,13 @@
         "browser_received_trial_time_ms",
         "transport_delay_ms",
         "stimulus_frame_time_ms",
-        "clock_mapping"
+        "clock_mapping",
+        "target_number",
+        "accuracy_eligible",
+        "accuracy_delta_t_ms",
+        "gaze_velocity_deg_s",
+        "is_fixation",
+        "tff_ms"
       ];
 
       const rowLines = records.map(r => [
@@ -2945,7 +3081,13 @@
         r.browser_received_trial_time_ms,
         r.transport_delay_ms ?? "",
         r.stimulus_frame_time_ms,
-        csvEscape(r.clock_mapping)
+        csvEscape(r.clock_mapping),
+        r.target_number,
+        r.accuracy_eligible,
+        r.accuracy_delta_t_ms,
+        r.gaze_velocity_deg_s ?? "",
+        r.is_fixation ?? "",
+        r.tff_ms ?? ""
       ].join(","));
 
       const fullCsvContent = [
@@ -3014,22 +3156,26 @@
             if (typeof extension.onGazeUpdate === "function") {
               unsubscribeWebgazer = extension.onGazeUpdate((prediction) => {
                 if (ended || sessionStart === null || !activeTrialCapture || !activeTrialCapture.onSample) return;
-                const nowUs = Math.round(performance.now() * 1000);
-                if (prediction && Number.isFinite(prediction.x) && Number.isFinite(prediction.y)) {
-                  activeTrialCapture.onSample({
-                    valid: true,
-                    x: prediction.x,
-                    y: prediction.y,
-                    device_timestamp_us: nowUs
-                  });
-                } else {
-                  activeTrialCapture.onSample({
-                    valid: false,
-                    x: null,
-                    y: null,
-                    device_timestamp_us: nowUs
-                  });
+                if (activeTrialCapture.samples.length >= MAX_GAZE_SAMPLES_PER_TRIAL) {
+                  activeTrialCapture.overflow += 1;
+                  return;
                 }
+                const receivedAt = performance.now();
+                const sourceTime = prediction?.sample_performance_ms;
+                const hasSourceTime = Number.isFinite(sourceTime) && sourceTime >= 0 && sourceTime <= receivedAt;
+                const sampleTime = hasSourceTime ? sourceTime : receivedAt;
+                const valid = Boolean(prediction && Number.isFinite(prediction.x) && Number.isFinite(prediction.y));
+                const sample = {
+                  valid,
+                  x: valid ? prediction.x : null,
+                  y: valid ? prediction.y : null,
+                  device_timestamp_us: Math.round(sampleTime * 1000),
+                  sample_performance_ms: sampleTime,
+                  transport_delay_ms: hasSourceTime ? round(receivedAt - sampleTime, 3) : null,
+                  clock_mapping: hasSourceTime ? "webgazer_inference_start_to_browser_performance" : "browser_receipt_time"
+                };
+                activeTrialCapture.samples.push(sample);
+                activeTrialCapture.onSample(sample);
               });
             }
           }
@@ -3109,14 +3255,16 @@
             const deltaMs = active.lastSampleTsUs === null ? 1000 / 33 : (currentTsUs - active.lastSampleTsUs) / 1000;
             active.lastSampleTsUs = currentTsUs;
 
-            // Match the acquired gaze to the displayed frame, not the later message arrival.
+            // Match the sample's source timestamp to the displayed frame before its callback arrived.
             let low = 0;
             let high = frameCoordinates.length - 1;
             let frame = null;
+            let frameIndex = -1;
             while (low <= high) {
               const mid = Math.floor((low + high) / 2);
               if (frameCoordinates[mid].timestamp_ms <= trialTime) {
                 frame = frameCoordinates[mid];
+                frameIndex = mid;
                 low = mid + 1;
               } else high = mid - 1;
             }
@@ -3124,6 +3272,10 @@
             const effectiveDeltaMs = Math.min(deltaMs > 100 ? 1000 / 33 : deltaMs, trialTime);
             if (deltaMs > 100) active.missingDurationMs = (active.missingDurationMs || 0) + deltaMs - effectiveDeltaMs;
             const isSaccadeLatency = moduleKey === "saccade" && frame.phase === "dwell" && trialTime - frame.phase_started_ms < 200;
+            const eligibleStart = accuracyPhaseStart(moduleKey, frame);
+            const accuracyEligible = eligibleStart !== null && trialTime >= eligibleStart;
+            const scoredDeltaMs = accuracyEligible
+              ? accuracyDurationMs(moduleKey, frameCoordinates, frameIndex, trialTime, effectiveDeltaMs) : 0;
 
             let isWithin = 0;
             let distPx = null;
@@ -3136,14 +3288,10 @@
               const dy = sample.y - frame.stimulus_center_y;
               distPx = Math.hypot(dx, dy);
               distDeg = gazeErrorDegrees(dx, dy, calibration, screenPixels);
+              isWithin = distDeg <= thresholdDeg ? 1 : 0;
 
-              if (!isSaccadeLatency) {
-                active.totalValidMs += effectiveDeltaMs;
-                if (distDeg <= thresholdDeg) {
-                  isWithin = 1;
-                  active.totalInThreshMs += effectiveDeltaMs;
-                }
-              }
+              active.totalValidMs += scoredDeltaMs;
+              if (isWithin) active.totalInThreshMs += scoredDeltaMs;
             }
 
             active.synchronousRecords.push({
@@ -3164,7 +3312,10 @@
               distance_error_px: distPx !== null ? round(distPx, 2) : "",
               distance_error_deg: distDeg !== null ? round(distDeg, 3) : "",
               is_within_threshold: isWithin,
+              accuracy_eligible: accuracyEligible ? 1 : 0,
+              accuracy_delta_t_ms: sample.valid ? round(scoredDeltaMs, 3) : 0,
               phase: isSaccadeLatency ? "saccade_latency" : frame.phase,
+              target_number: frame.target_number,
               direction: frame.direction
             });
           };
@@ -3340,6 +3491,8 @@
             });
           }
           const normalFrameMedian = median(sampledFrameGaps.filter((gap) => gap > 4 && gap < 100));
+          const tff = moduleKey === "saccade"
+            ? saccadeFixationSummary(gazeCapture.synchronousRecords || [], events, calibration, screenPixels) : null;
 
           // Automatically export synchronous CSV record
           exportTrialCsvs({
@@ -3367,7 +3520,8 @@
             thresholdDetails,
             thresholdArcmin,
             thresholdPx: round(thresholdRadiusPx, 1),
-            gazeCapture
+            gazeCapture,
+            tff
           });
 
           const data = {
@@ -3380,6 +3534,12 @@
             completed_targets: completedTargets,
             actual_duration_ms: round(sessionStart === null ? 0 : endedAt - sessionStart, 3),
             accuracy_rate: gazeCapture.accuracyRate,
+            ...(tff ? {
+              tff_mean_ms: tff.mean_ms,
+              tff_detected_targets: tff.detected_targets,
+              tff_total_targets: tff.total_targets,
+              tff_analysis: tff
+            } : {}),
             in_threshold_sec: round((gazeCapture.totalInThreshMs || 0) / 1000, 2),
             valid_sec: round((gazeCapture.totalValidMs || 0) / 1000, 2),
             blink_sec: round((gazeCapture.totalBlinkMs || 0) / 1000, 2),
@@ -3449,10 +3609,10 @@
         let picker = null;
         let phaseStart = 0;
         let phaseEnd = 0;
-        let arrivalFrame = -1;
         let movementFrom = null;
         let movementTo = null;
         let movementDuration = 0;
+        let returnReachedCenter = false;
         let vorIndex = -1;
         let lastVorColor = null;
         let lastVorDigit = null;
@@ -3492,6 +3652,7 @@
         };
 
         const beginMovement = (now) => {
+          returnReachedCenter = false;
           phase = "movement";
           phaseStart = now;
           movementFrom = center;
@@ -3524,9 +3685,16 @@
               planned_hold_ms: settings.holdSec * 1000
             });
           } else {
-            completedTargets += 1;
-            phase = "arrival_frame";
-            arrivalFrame = frameCount;
+            phase = "return";
+            phaseStart = now;
+            movementFrom = { ...movementTo };
+            movementTo = { ...center };
+            phaseEnd = now + movementDuration;
+            logEvent("return_onset", now, {
+              target_number: completedTargets + 1,
+              direction: currentDirection,
+              duration_ms: round(movementDuration, 3)
+            });
           }
         };
 
@@ -3557,7 +3725,12 @@
             beginMovement(now);
             return;
           }
-          if (phase === "movement") {
+          if (phase === "return" && returnReachedCenter) {
+            if (settings.mode === EVALUATION && completedTargets >= picker.evaluationTotal) endTrial("evaluation_complete");
+            else beginExcursion(now);
+            return;
+          }
+          if (phase === "movement" || phase === "return") {
             const ratio = movementDuration <= 0 ? 1 : Math.min(1, Math.max(0, (now - phaseStart) / movementDuration));
             setPosition({
               x: movementFrom.x + (movementTo.x - movementFrom.x) * ratio,
@@ -3566,12 +3739,14 @@
             if (stimulusType === "numbers_dot") {
               updateDynamicNumber(now);
             }
-            if (ratio >= 1) finishMovementAtEdge(now);
-            return;
-          }
-          if (phase === "arrival_frame" && frameCount > arrivalFrame) {
-            if (settings.mode === EVALUATION && completedTargets >= picker.evaluationTotal) endTrial("evaluation_complete");
-            else beginExcursion(now);
+            if (ratio >= 1) {
+              if (phase === "movement") finishMovementAtEdge(now);
+              else {
+                completedTargets += 1;
+                returnReachedCenter = true;
+                logEvent("center_arrival", now, { target_number: completedTargets, direction: currentDirection });
+              }
+            }
             return;
           }
           if (phase === "hold" && now >= phaseEnd) {
@@ -3631,7 +3806,7 @@
               time_sec: round((now - sessionStart) / 1000, 4),
               phase,
               phase_started_ms: round(phaseStart - sessionStart, 3),
-              target_number: completedTargets + 1,
+              target_number: phase === "return" && returnReachedCenter ? completedTargets : completedTargets + 1,
               direction: currentDirection || currentGridKey || "center",
               direction_label: DIRECTION_ENGLISH_LABELS[currentDirection || currentGridKey] || currentDirection || currentGridKey || "Center",
               stimulus_center_x: round(currentCenter.x, 3),

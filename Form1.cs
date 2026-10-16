@@ -16,6 +16,7 @@ namespace TobiiEyeTrainer
         public Form1()
         {
             InitializeComponent();
+            this.AutoScaleMode = AutoScaleMode.Dpi;
             this.Text = "Oculomotor Training System - Tobii Eye Tracker 5 (33 Hz)";
             this.WindowState = FormWindowState.Maximized;
             this.BackColor = Color.FromArgb(11, 11, 11);
@@ -49,6 +50,8 @@ namespace TobiiEyeTrainer
                 _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
                 _webView.CoreWebView2.Settings.IsZoomControlEnabled = false;
+                _webView.CoreWebView2.Settings.IsPinchZoomEnabled = false;
+                _webView.ZoomFactor = 1.0;
 
                 var previousBounds = Bounds;
                 var previousWindowState = WindowState;
@@ -57,12 +60,14 @@ namespace TobiiEyeTrainer
                 {
                     if (_webView.CoreWebView2.ContainsFullScreenElement)
                     {
+                        // Capture the display before restoring a maximized window changes its location.
+                        var fullscreenBounds = Screen.FromControl(this).Bounds;
                         previousBounds = Bounds;
                         previousWindowState = WindowState;
                         previousBorderStyle = FormBorderStyle;
                         WindowState = FormWindowState.Normal;
                         FormBorderStyle = FormBorderStyle.None;
-                        Bounds = Screen.FromControl(this).Bounds;
+                        Bounds = fullscreenBounds;
                     }
                     else
                     {

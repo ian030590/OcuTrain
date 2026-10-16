@@ -65,6 +65,9 @@
 ### 2.2 距離閾值：純視角單位 (度/角分)
 * 受試者在不同解析度與不同大小的螢幕上，相同像素所對應的視網膜成像大小完全不同。
 * 因此，在標閾值**嚴格以視角（度 / 角分）為核心基準**。
+* 實際在標閾值取「設定閾值 + 追蹤器誤差容許」與「五點驗證閾值（平均誤差的兩倍，最低 0.5°）」的較大值；尚無同來源的有效驗證時，使用前者。
+  - Tobii Eye Tracker 5 誤差容許為 1°，WebGazer 為 2°；未追蹤模式不加入誤差容許。
+  - 驗證已包含量測誤差，因此不再將誤差容許加到驗證閾值上；原始量測誤差保留於 CSV。
 * 物理距離換算公式：
   $$\theta_{arcmin} = 2 \times \arctan\left(\frac{S_{cm}}{2 \times D_{cm}}\right) \times \frac{180 \times 60}{\pi}$$
 
@@ -79,6 +82,21 @@
 ### 2.5 商業防護與通訊
 * 保留原系統之 30 天到期鎖死檢查 (`checkExpiry`)。
 * 測驗完成後具備 Discord Webhook 自動通訊報表傳送機制。
+
+### 2.6 Smooth Pursuit 與 Fixation 的計分階段
+* **Smooth Pursuit**：圓球以設定速度從中心移動至邊緣，再連續移動回中心；完成往返才計為一個目標。去程與回程均納入 Accuracy，中央十字準備時間排除。
+* **Fixation**：僅計算圓球抵達邊緣後的 `hold` 階段；中央十字與移動途中排除。移動軌跡、視線與誤差仍完整保留在原始資料及 CSV。
+* 依來源樣本時間對應刺激階段，並限制時間權重不得跨入排除階段。CSV 的 `accuracy_eligible` 表示當下階段是否可計分；`accuracy_delta_t_ms` 為該有效樣本實際計入的時間。
+* `is_within_threshold` 表示原始空間距離是否命中，包括未計分的階段；不能直接以此欄樣本比例取代時間加權 Accuracy。
+
+### 2.7 Saccade 的 Time To First Fixation (TFF)
+* Accuracy 沿用現有計分及每次目標出現後的 200 ms 潛伏容許窗；TFF 獨立從目標實際出現時間起算，不受此窗限制。
+* 必須先偵測眼動，再找首次穩定注視，避免把上一位置延續的注視算成新反應；注視不必落在目標範圍內。
+* 以來源時間戳與物理視角計算相鄰樣本角速度，採 I-VT-style 判定：速度不超過 30°/s、至少 3 筆有效樣本且持續至少 100 ms。無效樣本或超過 100 ms 的缺口中斷注視，不插值。
+* TFF = 首次確認注視的**開始時間** − 目標出現時間，另記錄確認時間；不將等待確認的 100 ms 加入 TFF。
+* 每個目標分別記錄 TFF 與狀態（`detected`、`no_movement_detected`、`no_confirmed_fixation`、`no_valid_samples`）；未偵測者為 N/A，平均值只使用成功偵測的目標，並同時顯示偵測數／總目標數。
+* 結果畫面顯示平均 TFF，CSV 包含逐目標結果與樣本注視標記，JSON 包含完整 `tff_analysis`。Tobii 與 WebGazer 共用此計算，不依固定 Hz 換算。
+* 此為程式的來源樣本分類器，並非 Tobii SDK 的內建注視事件；角速度及持續時間採用 [Tobii I-VT 參考設定](https://developer.tobii.com/xr/ocumen/ocumen-filters/ocumen_filters/fixation_tobii_ivt/)，未套用其全部合併／插值流程。WebGazer 雜訊可能影響偵測率，須以實機資料確認。
 
 ---
 
@@ -113,7 +131,7 @@
 - 同樣的時序黎曼積分 ($\Delta t_k = t_k - t_{k-1}$，異常值限制於 100ms 內)。
 - 同樣的眨眼扣除分母機制。
 - 同樣的 200ms 跳視潛伏容許窗。
-- 同樣的 15 欄位同步時序記錄與單一 CSV 輸出。
+- 同樣的同步時序欄位、模組階段規則、TFF 分類及單一 CSV 輸出。
 
 ---
 
@@ -142,11 +160,12 @@
 1. **瞬間歐氏距離誤差 ($D_t$)**：
    $$D_t = \sqrt{(X_{gaze}(t) - X_{stim}(t))^2 + (Y_{gaze}(t) - Y_{stim}(t))^2}$$
 2. **在標判定 ($\mathbb{I}_{hit}(t)$)**：
-   $$\mathbb{I}_{hit}(t) = \begin{cases} 1, & \text{if } D_t \le R_{th} \text{ 且 } GazeValid(t) = \text{true} \text{ 且非潛伏期} \\ 0, & \text{otherwise} \end{cases}$$
+   $$\mathbb{I}_{hit}(t) = \begin{cases} 1, & \text{if } D_t \le R_{th} \text{ 且 } GazeValid(t) = \text{true} \\ 0, & \text{otherwise} \end{cases}$$
 3. **在標時間累計 ($T_{in\_thresh}$)**：
-   $$T_{in\_thresh} = \sum_{k=1}^{N} \mathbb{I}_{hit}(t_k) \times \Delta t_k$$
+   $$T_{in\_thresh} = \sum_{k=1}^{N} \mathbb{I}_{hit}(t_k) \times \Delta t_{scored,k}$$
 4. **有效評估總時間 ($T_{valid}$)**：
-   $$T_{valid} = \sum_{k=1}^{N} [GazeValid(t_k) = \text{true} \land \text{Phase} \neq \text{latency}] \times \Delta t_k$$
+   $$T_{valid} = \sum_{k=1}^{N} [GazeValid(t_k) = \text{true}] \times \Delta t_{scored,k}$$
+   其中 $\Delta t_{scored,k}$ 為依 2.6 節模組階段與跳視潛伏窗排除後的有效時間權重；分子也使用相同權重。
 5. **眼動正確率 (Accuracy Rate, %)**：
    $$Accuracy = \left( \frac{T_{in\_thresh}}{T_{valid}} \right) \times 100\%$$
 
@@ -156,12 +175,15 @@
 
 #### 包含項目：
 1. **中繼資料區塊 (Metadata Headers，以 `#` 起頭)**：包含受試者 ID、測驗代碼、螢幕物理尺寸、觀看距離、刺激球大小、移動速度、距離閾值、測驗總時長、有效注視時長、生理眨眼時長、低於閾值在標時長、眼動正確率、設備型號（Tobii 5 或 WebGazer）、取樣頻率。
-2. **同步時序數據表 (15 個欄位)**：
+2. **同步時序數據表 (25 個欄位)**：
    - `採樣序號`、`自測驗開始毫秒 (ms)`、`設備微秒時間戳記 (us)`、`採樣間隔 (ms)`、`瞬間頻率 (Hz)`
    - `注視有效性 (1/0)`、`注視點X (px)`、`注視點Y (px)`
    - `刺激物X (px)`、`刺激物Y (px)`
    - `瞬間距離誤差 (px)`、`瞬間距離誤差 (deg)`、`是否在閾值內 (1/0)`
    - `測驗階段`、`方位名稱`
+   - `browser_received_trial_time_ms`、`transport_delay_ms`、`stimulus_frame_time_ms`、`clock_mapping`
+   - `target_number`、`accuracy_eligible`、`accuracy_delta_t_ms`
+   - `gaze_velocity_deg_s`、`is_fixation`、`tff_ms`（非 Saccade 測驗留空）
 3. **UTF-8 with BOM 編碼**：Excel 開啟直接正常顯示繁體中文。
 
 ---
@@ -170,6 +192,11 @@
 
 ### 5.1 技術選型決策：.NET 10 + WebView2 + 雙軌眼動架構
 * **桌面宿主**：C# .NET 10 WinForms + Microsoft Edge WebView2。
+  - 使用 `PerMonitorV2` 動態套用所在螢幕的 DPI，全螢幕範圍於切換前依視窗所在螢幕取得；不指定固定螢幕、解析度或縮放比例。
+* **WebGazer 初始化與取樣**：FaceMesh 與 BlazeFace 模型、權重隨 EXE 內嵌並解壓於本機，校正無須從模型伺服器下載；jsPsych 直接接收 WebGazer 的單一預測串流，避免驗證與訓練同時重複執行臉部推論。
+  - 模型來源：[FaceMesh v1](https://tfhub.dev/mediapipe/tfjs-model/facemesh/1/default/1)、[BlazeFace v1](https://tfhub.dev/tensorflow/tfjs-model/blazeface/1/default/1)。
+  - WebGazer 保留推論開始時的單調時間戳 `sample_performance_ms`，以此配對刺激歷史畫面；jsPsych 的測驗相對時間 `t` 與結果送達時間不作為來源時間。
+  - CSV 的 `transport_delay_ms` 在 WebGazer 模式表示「推論開始至回呼送達」的耗時，未包含鏡頭曝光／擷取及濾波延遲；來源時間不可用時回退為回呼時間，延遲留空。這不是鏡頭至螢幕的完整延遲量測。
 * **通訊機制**：
   - Tobii 訊號：C# 背景執行緒調用 `tobii_stream_engine.dll`，透過 `PostWebMessageAsJson` 高速推送到前端。
   - WebGazer 訊號：前端 WebGazer.js 透過 `jsPsychExtensionWebgazer.onGazeUpdate` 直接推送，全流程無須經由網路協定。

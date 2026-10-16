@@ -50,6 +50,7 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
     addEventListener() {}, removeEventListener() {},
     setTimeout: schedule, clearTimeout: id => timers.delete(id),
+    setInterval: schedule, clearInterval: id => timers.delete(id),
     TobiiBridge: injectedClient,
     ...(native ? { chrome: { webview: {
       addEventListener: (name, handler) => handlers.set(name, handler),
@@ -74,7 +75,7 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
   vm.runInContext(appSource.replace("    jsPsych.run([", `
     window.testApi = { AppState, beginTobiiTrial, finishTobiiTrial, finishWebGazerTrial,
       connectTobiiBridge, bindInjectedTobiiClient, EyeTrainingPlugin, GazeValidationPlugin,
-      createCalibration, sessionBanner };
+      OptionalWebGazerCameraPlugin, createCalibration, sessionBanner, saccadeFixationSummary };
     jsPsych.run([`), context);
   return { window, document, jsPsych, timers, frames, savedCsvs, api: window.testApi,
     setNow: value => { now = value; },
@@ -182,6 +183,177 @@ function startTraining(app, source = "tobii", { module = "vor", settings = {}, c
   app.runFrame();
   return () => { app.runTimer((settings.totalSec || 1) * 1000); return result; };
 }
+
+function trackedTraining(source, module, settings) {
+  const app = loadApp();
+  app.api.AppState.tobii.clockOffsetMs = 0;
+  let onGaze;
+  app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+  const finish = startTraining(app, source, { module,
+    settings: { mode: "predictable", totalSec: 20, directions: ["rightMiddle"], ...settings } });
+  return { app, finish,
+    frame(time) { app.setNow(time); app.runFrame(); },
+    sample(time, x = 0.5, y = 0.5, valid = true, received = time) {
+      app.setNow(received);
+      if (source === "tobii") app.emit(gaze(x, y, valid, time * 1000));
+      else onGaze({ x: valid ? x * 1920 : null, y: valid ? y * 1080 : null, sample_performance_ms: time });
+    },
+    get capture() { return source === "tobii" ? app.api.AppState.tobii.activeTrial : app.api.AppState.webgazerActiveTrial; }
+  };
+}
+
+function csvRows(app) {
+  const lines = app.savedCsvs[0].content.split(/\r?\n/).filter(line => !line.startsWith("#"));
+  const headers = lines.shift().split(",");
+  return lines.map(line => {
+    const values = line.split(",");
+    assert.equal(values.length, headers.length);
+    return Object.fromEntries(values.map((value, index) => [headers[index], value.replace(/^"|"$/g, "").replace(/""/g, '"')]));
+  });
+}
+
+for (const source of ["tobii", "webgazer"]) {
+  test(`${source} pursuit excludes the cross and keeps a visible target through the return to center`, () => {
+    const run = trackedTraining(source, "pursuit", { speedArcminSec: 6000 });
+    run.sample(1040, 0.1, 0.1);
+    assert.equal(run.capture.totalValidMs, 0);
+    assert.equal(run.capture.synchronousRecords[0].accuracy_eligible, 0);
+    run.frame(2000);
+    run.sample(2020);
+    assert.equal(run.capture.totalValidMs, 20);
+    run.frame(2300);
+    run.sample(2310, 0.99);
+    const edge = run.capture.synchronousRecords.at(-1);
+    assert.equal(edge.phase, "return");
+    assert.ok(edge.stimulus_x_px > 1800);
+    run.frame(2400);
+    run.sample(2410, 0.99);
+    const returning = run.capture.synchronousRecords.at(-1);
+    assert.equal(returning.phase, "return");
+    assert.ok(returning.stimulus_x_px > 960 && returning.stimulus_x_px < edge.stimulus_x_px);
+    assert.ok(returning.accuracy_delta_t_ms > 0);
+    run.frame(2600);
+    run.sample(2600);
+    const center = run.capture.synchronousRecords.at(-1);
+    assert.equal(center.phase, "return");
+    assert.equal(center.stimulus_x_px, 960);
+    assert.equal(center.target_number, 1);
+    run.frame(2616);
+    run.sample(2640);
+    assert.equal(run.capture.synchronousRecords.at(-1).phase, "cross");
+    const result = run.finish();
+    assert.equal(result.completed_targets, 1);
+    assert.ok(result.event_log.some(event => event.event === "return_onset"));
+    assert.ok(result.event_log.some(event => event.event === "center_arrival"));
+    assert.equal(csvRows(run.app).length, 6);
+    assert.match(run.app.savedCsvs[0].content, /Outward and return movement only/);
+  });
+
+  test(`${source} fixation scores only edge hold and clips sample intervals at its onset`, () => {
+    const run = trackedTraining(source, "fixation", { speedArcminSec: 6000, holdSec: 1 });
+    run.sample(1040);
+    run.frame(2000);
+    run.frame(2200);
+    run.sample(2270, 0.1, 0.1);
+    assert.equal(run.capture.totalValidMs, 0);
+    run.frame(2300);
+    run.sample(2320, 0.99);
+    assert.equal(run.capture.totalValidMs, 20);
+    assert.equal(run.capture.synchronousRecords.at(-1).accuracy_delta_t_ms, 20);
+    run.sample(2350, 0.99);
+    run.frame(3300);
+    run.sample(3320, 0.1, 0.1);
+    const result = run.finish();
+    assert.equal(result.accuracy_rate, 100);
+    const rows = csvRows(run.app);
+    assert.ok(rows.some(row => row.phase === "movement" && row.accuracy_delta_t_ms === "0"));
+    assert.ok(rows.some(row => row.phase === "hold" && row.accuracy_eligible === "1"));
+    assert.ok(rows.filter(row => row.phase === "cross").every(row => row.accuracy_delta_t_ms === "0"));
+    assert.equal(JSON.parse(result.gaze_path).length, 5);
+    assert.match(run.app.savedCsvs[0].content, /Edge hold only/);
+  });
+
+  test(`${source} TFF uses source time, detects an off-target fixation and ignores the accuracy grace window`, () => {
+    const run = trackedTraining(source, "saccade", { dwellMs: 1000 });
+    run.frame(2000);
+    run.frame(2300);
+    [1980, 2020, 2050, 2080, 2110, 2140, 2180].forEach((time, index) => {
+      run.sample(time, time >= 2080 ? 0.65 : 0.5, 0.5, true, 2400 + index);
+    });
+    const result = run.finish();
+    assert.equal(result.tff_mean_ms, 80);
+    assert.equal(result.tff_detected_targets, 1);
+    assert.equal(result.tff_total_targets, 1);
+    const target = result.tff_analysis.targets[0];
+    assert.equal(target.target_onset_ms, 1000);
+    assert.equal(target.fixation_onset_ms, 1080);
+    assert.equal(target.fixation_confirmed_ms, 1180);
+    assert.equal(target.status, "detected");
+    const rows = csvRows(run.app);
+    const fixation = rows.find(row => row.trial_time_ms === "1080");
+    assert.equal(fixation.is_within_threshold, "0");
+    assert.equal(fixation.is_fixation, "1");
+    assert.equal(fixation.accuracy_delta_t_ms, "0");
+    assert.equal(fixation.tff_ms, "80");
+    assert.match(run.app.savedCsvs[0].content, /TFF Target 1: 80 ms/);
+    assert.match(run.app.api.sessionBanner(result), /Mean TFF: <strong>80 ms/);
+  });
+}
+
+function fixationAnalysis(points, onsets = [100]) {
+  const app = loadApp();
+  const records = points.map(([time, x, valid = true, target = 1]) => ({
+    trial_time_ms: time, device_timestamp_us: time * 1000,
+    phase: "dwell", target_number: target, gaze_valid: valid ? 1 : 0,
+    gaze_x_px: x * 1920, gaze_y_px: 540
+  }));
+  const events = onsets.map((time, index) => ({ event: "saccade_onset", actual_ms: time,
+    target_number: index + 1, direction: "rightMiddle" }));
+  return { records, result: app.api.saccadeFixationSummary(records, events,
+    app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 }),
+    { width: 1920, height: 1080 }) };
+}
+
+test("TFF does not count the fixation carried over from the previous target", () => {
+  const { records, result } = fixationAnalysis([100, 140, 180, 220, 260].map(time => [time, 0.5]));
+  assert.equal(result.mean_ms, null);
+  assert.equal(result.targets[0].status, "no_movement_detected");
+  assert.ok(records.every(record => record.is_fixation === 1));
+});
+
+test("TFF requires 100 ms of uninterrupted valid fixation and does not interpolate blinks or gaps", () => {
+  for (const interruption of [[300, 0.65, false], [370, 0.65]]) {
+    const { result } = fixationAnalysis([
+      [100, 0.5], [140, 0.5], [180, 0.65], [220, 0.65], [260, 0.65], interruption,
+      [390, 0.65], [430, 0.65], [470, 0.65], [510, 0.65]
+    ]);
+    const onset = interruption[2] === false ? 390 : 370;
+    assert.equal(result.targets[0].fixation_onset_ms, onset);
+    assert.equal(result.mean_ms, onset - 100);
+  }
+  const { result } = fixationAnalysis([[100, 0.5], [140, 0.65], [180, 0.65], [220, 0.65], [239, 0.65]]);
+  assert.equal(result.mean_ms, null);
+  assert.equal(result.targets[0].status, "no_confirmed_fixation");
+});
+
+test("TFF is independent of sample rate and resets detection for every target", () => {
+  for (const interval of [10, 25, 50]) {
+    const samples = [[100, 0.5], [140, 0.5], [180, 0.65]];
+    for (let time = 180 + interval; time <= 280; time += interval) samples.push([time, 0.65]);
+    for (const time of [400, 440, 480, 520]) samples.push([time, 0.65, true, 2]);
+    const { result } = fixationAnalysis(samples, [100, 400]);
+    assert.equal(result.mean_ms, 80);
+    assert.equal(result.detected_targets, 1);
+    assert.equal(result.total_targets, 2);
+    assert.equal(result.targets[1].status, "no_movement_detected");
+  }
+});
+
+test("TFF retains a separate N/A outcome for targets without valid samples", () => {
+  const { result } = fixationAnalysis([[120, 0.5, false]]);
+  assert.equal(result.mean_ms, null);
+  assert.equal(result.targets[0].status, "no_valid_samples");
+});
 
 test("native samples drive scoring and CSV export, with blinks excluded", () => {
   const app = loadApp();
@@ -299,6 +471,61 @@ test("delayed gaze is compared to the frame at acquisition, not the latest targe
   assert.equal(finish().accuracy_rate, 100);
 });
 
+test("delayed WebGazer gaze uses the absolute inference timestamp instead of callback time or trial-relative t", () => {
+  const app = loadApp();
+  let onGaze;
+  app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+  const finish = startTraining(app, "webgazer", { module: "saccade",
+    settings: { mode: "predictable", dwellMs: 1000, totalSec: 10, directions: ["rightMiddle"] } });
+  app.setNow(2100); app.runFrame();
+  app.setNow(2300);
+  onGaze({ x: 960, y: 540, t: 600, sample_performance_ms: 1600 });
+  const record = app.api.AppState.webgazerActiveTrial.synchronousRecords[0];
+  assert.equal(record.stimulus_x_px, 960);
+  assert.equal(record.trial_time_ms, 600);
+  assert.equal(record.browser_received_trial_time_ms, 1300);
+  assert.equal(record.device_timestamp_us, 1600000);
+  assert.equal(record.transport_delay_ms, 700);
+  assert.equal(record.clock_mapping, "webgazer_inference_start_to_browser_performance");
+  assert.equal(record.is_within_threshold, 1);
+  assert.equal(finish().accuracy_rate, 100);
+  assert.match(app.savedCsvs[0].content, /WebGazer inference start/);
+  assert.match(app.savedCsvs[0].content, /camera capture delay not measured/);
+});
+
+test("WebGazer saccade grace and pre-trial rejection use inference time", () => {
+  const app = loadApp();
+  let onGaze;
+  app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+  startTraining(app, "webgazer", { module: "saccade",
+    settings: { mode: "predictable", dwellMs: 1000, totalSec: 10, directions: ["rightMiddle"] } });
+  app.setNow(1050);
+  onGaze({ x: 960, y: 540, sample_performance_ms: 990 });
+  const capture = app.api.AppState.webgazerActiveTrial;
+  assert.equal(capture.synchronousRecords.length, 0);
+  app.setNow(2100); app.runFrame();
+  app.setNow(2500);
+  onGaze({ x: 960, y: 540, sample_performance_ms: 2200 });
+  assert.equal(capture.synchronousRecords[0].phase, "saccade_latency");
+  assert.equal(capture.totalValidMs, 0);
+});
+
+test("missing or invalid WebGazer source times fall back explicitly without inventing a measured delay", () => {
+  for (const sampleTime of [undefined, NaN, -1, 2000]) {
+    const app = loadApp();
+    let onGaze;
+    app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+    const finish = startTraining(app, "webgazer");
+    app.setNow(1030.3);
+    onGaze({ x: 960, y: 540, sample_performance_ms: sampleTime });
+    const record = app.api.AppState.webgazerActiveTrial.synchronousRecords[0];
+    assert.equal(record.trial_time_ms, 30.3);
+    assert.equal(record.transport_delay_ms, null);
+    assert.equal(record.clock_mapping, "browser_receipt_time");
+    assert.equal(finish().accuracy_rate, 100);
+  }
+});
+
 test("saccade grace uses acquisition time even if the message arrives later", () => {
   const app = loadApp();
   app.api.AppState.tobii.clockOffsetMs = 0;
@@ -403,12 +630,135 @@ test("the GUI threshold remains editable and changes the effective Tobii thresho
   assert.equal(result.accuracy_rate, 100);
 });
 
-test("WebGazer and untracked sessions do not receive Tobii tolerance", () => {
-  for (const source of ["webgazer", "off"]) {
+for (const { name, settings, validation, expectedDeg } of [
+  { name: "default setting", expectedDeg: 3.5 },
+  { name: "precise validation", validation: { source: "webgazer", dynamicThresholdDeg: 0.5 }, expectedDeg: 3.5 },
+  { name: "larger validation without double-counting", validation: { source: "webgazer", dynamicThresholdDeg: 4 }, expectedDeg: 4 },
+  { name: "edited GUI setting", settings: { distanceThresholdArcmin: 120 }, validation: { source: "webgazer", dynamicThresholdDeg: 3.5 }, expectedDeg: 4 },
+  { name: "validation from another tracker", validation: { source: "tobii", dynamicThresholdDeg: 8 }, expectedDeg: 3.5 }
+]) {
+  test(`WebGazer includes two degrees of tolerance: ${name}`, () => {
     const app = loadApp();
-    const finish = startTraining(app, source);
+    let onGaze;
+    app.jsPsych.extensions.webgazer = {
+      onGazeUpdate: callback => { onGaze = callback; return () => {}; }
+    };
+    app.api.AppState.eyeTracking.lastValidation = validation;
+    const finish = startTraining(app, "webgazer", { settings });
+    for (const [index, errorDeg] of [expectedDeg - 0.1, expectedDeg + 0.1].entries()) {
+      app.setNow(1030.3 + index * 30.3);
+      const sample = gazeWithErrorDeg(errorDeg);
+      onGaze({ x: sample.x * 1920, y: sample.y * 1080 });
+    }
+    const records = app.api.AppState.webgazerActiveTrial.synchronousRecords;
+    assert.equal(records[0].distance_error_deg, expectedDeg - 0.1);
+    assert.equal(records[1].distance_error_deg, expectedDeg + 0.1);
+    assert.equal(records[0].is_within_threshold, 1);
+    assert.equal(records[1].is_within_threshold, 0);
     const result = finish();
-    assert.equal(result.threshold_deg, 1.5);
-    assert.equal(result.tracker_error_allowance_deg, 0);
+    assert.equal(result.threshold_setting_deg, (settings?.distanceThresholdArcmin || 90) / 60);
+    assert.equal(result.threshold_deg, expectedDeg);
+    assert.equal(result.threshold_arcmin, expectedDeg * 60);
+    assert.equal(result.tracker_error_allowance_deg, 2);
+    assert.equal(result.accuracy_rate, 50);
+    assert.match(app.api.sessionBanner(result), new RegExp(`Threshold: ${expectedDeg}°`));
+    assert.match(app.savedCsvs[0].content, new RegExp(`Hit Distance Threshold: ${expectedDeg} deg`));
+    assert.match(app.savedCsvs[0].content, /WebGazer Assumed Measurement-Error Allowance: 2 deg/);
+  });
+}
+
+test("WebGazer validation displays the same effective threshold used for scoring", async () => {
+  for (const [errorDeg, expectedDeg] of [[1, 3.5], [2, 4]]) {
+    const app = loadApp();
+    app.api.AppState.eyeTracking.source = "webgazer";
+    app.api.AppState.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+    app.api.AppState.pending = { eyeTrackingSource: "webgazer", settings: { distanceThresholdArcmin: 90 } };
+    let onGaze;
+    let paused = false;
+    let unsubscribed = false;
+    app.jsPsych.extensions.webgazer = {
+      hideVideo() {}, hidePredictions() {}, resume() {}, pause() { paused = true; },
+      onGazeUpdate: callback => { onGaze = callback; return () => { unsubscribed = true; }; }
+    };
+    const buttons = new Map();
+    const display = { innerHTML: "", querySelector: selector => {
+      if (!display.innerHTML.includes(`data-val-action="${selector.match(/'([^']+)'/)?.[1]}"`)) return null;
+      return { addEventListener: (_, callback) => buttons.set(selector, callback) };
+    } };
+    new app.api.GazeValidationPlugin(app.jsPsych).trial(display, {});
+    assert.equal(app.frames.size, 0, "Validation must consume the existing gaze stream without polling");
+    for (const [xRatio, yRatio] of [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
+      app.runTimer(350);
+      const dxPx = (gazeWithErrorDeg(errorDeg).x - 0.5) * 1920;
+      for (let i = 0; i < 3; i++) onGaze({ x: Math.round(1920 * xRatio) + dxPx, y: Math.round(1080 * yRatio) });
+      app.runTimer(1050);
+    }
+    assert.match(display.innerHTML, /Effective Hit Threshold \(includes 2° allowance\)/);
+    assert.ok(display.innerHTML.includes(`${expectedDeg}° (${expectedDeg * 60}')`));
+    assert.ok(display.innerHTML.includes(`Effective hit threshold: ${expectedDeg}°`));
+    assert.equal(paused, true);
+    assert.equal(unsubscribed, true);
+    await buttons.get("[data-val-action='proceed']")();
+    assert.equal(app.api.AppState.eyeTracking.lastValidation.dynamicThresholdDeg, errorDeg * 2);
+    assert.equal(startTraining(app, "webgazer")().threshold_deg, expectedDeg);
   }
+});
+
+test("untracked sessions do not receive a tracker measurement allowance", () => {
+  const app = loadApp();
+  app.api.AppState.eyeTracking.lastValidation = { source: "webgazer", dynamicThresholdDeg: 4 };
+  const result = startTraining(app, "off")();
+  assert.equal(result.threshold_deg, 1.5);
+  assert.equal(result.tracker_error_allowance_deg, 0);
+});
+
+test("camera startup displays feedback before initialization finishes and keeps the ready gate", async () => {
+  const app = loadApp();
+  let resolveStartup;
+  const startup = new Promise(resolve => { resolveStartup = resolve; });
+  const controls = new Map();
+  const display = { innerHTML: "", querySelector: selector => {
+    if (!controls.has(selector)) controls.set(selector, { disabled: true,
+      addEventListener: (_, callback) => { controls.get(selector).click = callback; } });
+    return controls.get(selector);
+  } };
+  let detected = false;
+  app.jsPsych.extensions.webgazer = { isInitialized: () => false, start: () => startup,
+    showVideo() {}, hideVideo() {}, hidePredictions() {}, resume() {}, pause() {},
+    faceDetected: () => detected };
+  let loadCount = 0;
+  let result;
+  app.jsPsych.finishTrial = value => { result = value; };
+  new app.api.OptionalWebGazerCameraPlugin(app.jsPsych).trial(display, {}, () => { loadCount++; });
+  assert.match(display.innerHTML, /Starting camera/);
+  assert.equal(loadCount, 1);
+  resolveStartup();
+  await new Promise(setImmediate);
+  assert.match(display.innerHTML, /Camera positioning/);
+  assert.equal(controls.get("#webgazer-camera-continue").disabled, true);
+  detected = true;
+  app.runTimer(200);
+  assert.equal(controls.get("#webgazer-camera-continue").disabled, false);
+  controls.get("#webgazer-camera-continue").click();
+  assert.equal(result.ready, true);
+  assert.equal(loadCount, 1);
+});
+
+test("camera initialization failures still offer the untracked fallback", async () => {
+  const app = loadApp();
+  let failStartup;
+  const startup = new Promise((_, reject) => { failStartup = reject; });
+  let clickFallback;
+  const display = { innerHTML: "", querySelector: () => ({ addEventListener: (_, callback) => { clickFallback = callback; } }) };
+  app.jsPsych.extensions.webgazer = { isInitialized: () => false, start: () => startup,
+    pause() {}, hideVideo() {}, hidePredictions() {} };
+  let result;
+  app.jsPsych.finishTrial = value => { result = value; };
+  new app.api.OptionalWebGazerCameraPlugin(app.jsPsych).trial(display, {});
+  failStartup(new Error("Camera denied"));
+  await new Promise(setImmediate);
+  assert.match(display.innerHTML, /Eye tracking unavailable/);
+  clickFallback();
+  assert.equal(result.ready, false);
+  assert.equal(result.error, "Camera denied");
 });
