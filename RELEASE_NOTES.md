@@ -1,4 +1,6 @@
-# TobiiEyeTrainer 2026.10.16
+# TobiiEyeTrainer 1.1.0
+
+版本採用「大版本.中版本.小修正」格式：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 v1.0.0，本次新增 Accuracy／TFF 功能為 v1.1.0。
 
 本版調整各測驗的 Accuracy 計分階段，新增 Saccade 的 Time To First Fixation（TFF），並改善 WebGazer 初始化、取樣時間與多螢幕顯示。
 
