@@ -497,6 +497,25 @@
       };
     }
 
+    function hitThresholdMaxArcmin(calibration = AppState.calibration) {
+      return calibration
+        ? Math.ceil(visualAngleArcmin(Math.hypot(calibration.screenWidthCm, calibration.screenHeightCm), calibration.viewingDistanceCm))
+        : 600;
+    }
+
+    function saccadeTargetLayout(settings, calibration, screenPixels = currentScreenPixels()) {
+      const horizontalArcmin = Number(settings.horizontalSpanArcmin)
+        || visualAngleArcmin(calibration.screenWidthCm * 2 / 3, calibration.viewingDistanceCm);
+      const verticalArcmin = Number(settings.verticalSpanArcmin)
+        || visualAngleArcmin(calibration.screenHeightCm * 2 / 3, calibration.viewingDistanceCm);
+      return {
+        horizontalArcmin,
+        verticalArcmin,
+        width: stimulusPixels(horizontalArcmin, calibration, screenPixels).width,
+        height: stimulusPixels(verticalArcmin, calibration, screenPixels).height
+      };
+    }
+
     function gazeErrorDegrees(dxPx, dyPx, calibration, screenPixels) {
       const dxCm = dxPx * calibration.screenWidthCm / screenPixels.width;
       const dyCm = dyPx * calibration.screenHeightCm / screenPixels.height;
@@ -1472,12 +1491,12 @@
       ].map(([value, label]) => `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`).join("");
     }
 
-    function numberField({ id, name, label, value, unit, hint, step = "any" }) {
+    function numberField({ id, name, label, value, unit, hint, step = "any", max }) {
       return `
         <div class="field">
           <label for="${id}">${label}</label>
           <div class="input-wrap">
-            <input id="${id}" name="${name}" data-label="${label}" type="number" min="0" step="any" inputmode="decimal" value="${value}" required>
+            <input id="${id}" name="${name}" data-label="${label}" type="number" min="0" ${max == null ? "" : `max="${max}"`} step="any" inputmode="decimal" value="${value}" required>
             <span class="unit">${unit}</span>
           </div>
           <p class="field-hint">${hint}</p>
@@ -1531,12 +1550,12 @@
               <span class="slider-value-pill" id="val-ball-size">${currentArcmin}' (${currentDeg}°)</span>
             </div>
             <input type="range" class="custom-range-slider" id="slider-ball-arcmin"
-                   min="10" max="300" step="5" value="${currentArcmin}">
+                   min="1" max="600" step="1" value="${currentArcmin}">
             <div class="slider-scale-labels">
-              <span>10' (0.17°)</span>
+              <span>1' (0.02°)</span>
               <span>60' (1.00°)</span>
               <span>120' (2.00°)</span>
-              <span>300' (5.00°)</span>
+              <span>600' (10.00°)</span>
             </div>
           </div>
         </div>
@@ -1552,6 +1571,7 @@
       // 4. Hit Distance Threshold
       const currentThreshArcmin = Number(settings.distanceThresholdArcmin) || 90;
       const currentThreshDeg = (currentThreshArcmin / 60).toFixed(2);
+      const thresholdMax = hitThresholdMaxArcmin();
       const thresholdSlider = `
         <div class="field span-all" style="margin-top: 4px;">
           <div class="slider-card" style="margin-top: 0;">
@@ -1560,22 +1580,22 @@
               <span class="slider-value-pill" id="val-threshold-size">${currentThreshArcmin}' (${currentThreshDeg}°)</span>
             </div>
             <input type="range" class="custom-range-slider" id="slider-threshold-arcmin"
-                   min="30" max="360" step="5" value="${currentThreshArcmin}">
+                   min="10" max="${thresholdMax}" step="1" value="${currentThreshArcmin}">
             <div class="slider-scale-labels">
-              <span>30' (0.50°)</span>
+              <span>10' (0.17°)</span>
               <span>90' (1.50°)</span>
               <span>180' (3.00°)</span>
-              <span>360' (6.00°)</span>
+              <span>${formatNumber(thresholdMax, 0)}' (${(thresholdMax / 60).toFixed(2)}°)</span>
             </div>
           </div>
         </div>
         <div class="field">
-          <label for="threshold-arcmin">Distance Threshold (arcmin)</label>
+          <label for="threshold-arcmin">Hit Distance Threshold (arcmin)</label>
           <div class="input-wrap">
-            <input id="threshold-arcmin" name="distanceThresholdArcmin" data-label="Distance Threshold (arcmin)" type="number" min="10" max="600" step="1" inputmode="decimal" value="${currentThreshArcmin}" required>
+            <input id="threshold-arcmin" name="distanceThresholdArcmin" data-label="Hit Distance Threshold (arcmin)" type="number" min="10" max="${thresholdMax}" step="1" inputmode="decimal" value="${currentThreshArcmin}" required>
             <span class="unit">' (arcmin)</span>
           </div>
-          <p class="field-hint">Tobii adds a ${TOBII_ERROR_ALLOWANCE_DEG}° measurement-error allowance to this setting; WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
+          <p class="field-hint">Scoring tolerance around the target center. This does not move the target. Tobii adds ${TOBII_ERROR_ALLOWANCE_DEG}°; WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
         </div>`;
 
       let paramFields = "";
@@ -1584,7 +1604,18 @@
           ${numberField({ id: "change-ms", name: "changeMs", label: "Shift Interval (ms)", value: settings.changeMs, unit: "ms", hint: "Interval between digit and color changes", step: "1" })}
           ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Session stops automatically when completed", step: "0.1" })}`;
       } else if (moduleKey === "saccade") {
-        paramFields = `${mode}${stimField}${sizeSlider}${thresholdSlider}
+        const layout = saccadeTargetLayout(settings, AppState.calibration);
+        const horizontalSpan = numberField({
+          id: "horizontal-span-arcmin", name: "horizontalSpanArcmin", label: "Horizontal Target Span (arcmin)",
+          value: round(layout.horizontalArcmin, 1), max: Math.floor(AppState.calibration.horizontalArcmin), unit: "arcmin",
+          hint: "Total angle between left and right target centers. Changes horizontal jump positions."
+        });
+        const verticalSpan = numberField({
+          id: "vertical-span-arcmin", name: "verticalSpanArcmin", label: "Vertical Target Span (arcmin)",
+          value: round(layout.verticalArcmin, 1), max: Math.floor(AppState.calibration.verticalArcmin), unit: "arcmin",
+          hint: "Total angle between top and bottom target centers. Leave room for the target radius at both edges."
+        });
+        paramFields = `${mode}${stimField}${horizontalSpan}${verticalSpan}${sizeSlider}${thresholdSlider}
           ${numberField({ id: "dwell-ms", name: "dwellMs", label: "Target Dwell Time (ms)", value: settings.dwellMs, unit: "ms", hint: "Target duration at each grid position", step: "1" })}
           ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Ignored in Evaluation mode", step: "0.1" })}`;
       } else if (moduleKey === "pursuit") {
@@ -1653,10 +1684,13 @@
       const fieldsByModule = {
         vor: ["ballArcmin", "changeMs", "totalSec"],
         pursuit: ["ballArcmin", "speedArcminSec", "totalSec"],
-        saccade: ["ballArcmin", "dwellMs", "totalSec"],
+        saccade: ["ballArcmin", "horizontalSpanArcmin", "verticalSpanArcmin", "dwellMs", "totalSec"],
         fixation: ["ballArcmin", "speedArcminSec", "holdSec", "totalSec"]
       };
-      const result = readPositiveNumbers(form, fieldsByModule[moduleKey]);
+      const result = readPositiveNumbers(form, [...fieldsByModule[moduleKey], "distanceThresholdArcmin"]);
+      if (result.values.distanceThresholdArcmin < 10 || result.values.distanceThresholdArcmin > hitThresholdMaxArcmin()) {
+        result.errors.push(`Hit Distance Threshold (10–${hitThresholdMaxArcmin()} arcmin)`);
+      }
       if (result.values.ballArcmin) {
         result.values.ballArcsec = result.values.ballArcmin * 60;
       }
@@ -1676,15 +1710,18 @@
       return result;
     }
 
-    function targetFitError(moduleKey, settings, calibration) {
+    function targetFitError(moduleKey, settings, calibration, viewport = currentScreenPixels()) {
       const screenPixels = currentScreenPixels();
       const ballArcmin = settings.ballArcmin || (settings.ballArcsec ? settings.ballArcsec / 60 : 60);
       const size = stimulusPixels(ballArcmin, calibration, screenPixels);
-      if (moduleKey === "saccade" && (size.width > screenPixels.width / 3 || size.height > screenPixels.height / 3)) {
-        return "The Saccade target must fit inside each grid cell. Reduce the target visual angle.";
-      }
-      if (size.width >= screenPixels.width || size.height >= screenPixels.height) {
+      if (size.width >= viewport.width || size.height >= viewport.height) {
         return "The target is too large for the available screen area. Reduce the target visual angle.";
+      }
+      if (moduleKey === "saccade") {
+        const layout = saccadeTargetLayout(settings, calibration, screenPixels);
+        if (layout.width + size.width > viewport.width || layout.height + size.height > viewport.height) {
+          return "The Saccade target extends beyond the screen. Reduce the horizontal/vertical target span or target visual angle.";
+        }
       }
       return "";
     }
@@ -1813,7 +1850,7 @@
       const pillThresh = dialog.querySelector("#val-threshold-size");
 
       const syncThreshSize = (val) => {
-        const num = Math.max(10, Math.min(600, Number(val) || 90));
+        const num = Math.max(10, Math.min(hitThresholdMaxArcmin(), Number(val) || 90));
         if (sliderThresh && Number(sliderThresh.value) !== num) sliderThresh.value = num;
         if (inputThresh && Number(inputThresh.value) !== num) inputThresh.value = num;
         if (pillThresh) {
@@ -1826,7 +1863,9 @@
         sliderThresh.addEventListener("input", (e) => syncThreshSize(e.target.value));
       }
       if (inputThresh) {
-        inputThresh.addEventListener("input", (e) => syncThreshSize(e.target.value));
+        inputThresh.addEventListener("input", () => {
+          if (inputThresh.value !== "" && inputThresh.validity.valid) syncThreshSize(inputThresh.value);
+        });
       }
 
       form.addEventListener("input", () => updateModulePreview(form, moduleKey, { stimulusType: currentStimType, directions: selectedDirs }));
@@ -1847,6 +1886,14 @@
       const mode = settings.values.mode;
       const stimType = settings.values.stimulusType || extra.stimulusType || "white_dot";
       const dirs = settings.values.directions || extra.directions || ALL_DIRECTIONS;
+      let spanText = "";
+      if (moduleKey === "saccade") {
+        const layout = saccadeTargetLayout(settings.values, AppState.calibration);
+        spanText = `<br>Target span: ${formatNumber(layout.horizontalArcmin, 1)}' horizontal × ${formatNumber(layout.verticalArcmin, 1)}' vertical`;
+        for (const [id, screenCm] of [["horizontal-span-arcmin", AppState.calibration.screenWidthCm], ["vertical-span-arcmin", AppState.calibration.screenHeightCm]]) {
+          form.querySelector(`#${id}`).max = Math.max(0, Math.floor(visualAngleArcmin(Math.max(0, screenCm - size.diameterCm), AppState.calibration.viewingDistanceCm) * 10) / 10);
+        }
+      }
 
       const stimNames = {
         white_dot: "White dot",
@@ -1872,9 +1919,10 @@
       }
 
       output.innerHTML = `
-        <span>${modeText}<br>Visual angle ${arcmin}' (${deg.toFixed(2)}°) · Diameter ${formatNumber(size.diameterCm, 3)} cm</span>
+        <span>${modeText}<br>Visual angle ${arcmin}' (${deg.toFixed(2)}°) · Diameter ${formatNumber(size.diameterCm, 3)} cm${spanText}</span>
         <strong>${formatNumber(size.width, 1)} × ${formatNumber(size.height, 1)} px</strong>
       `;
+      setError(form.querySelector("#module-error"), targetFitError(moduleKey, settings.values, AppState.calibration));
 
       const modeHint = form.querySelector("#mode-hint");
       if (modeHint) {
@@ -2355,8 +2403,10 @@
 
     function gridPoint(direction, geometry) {
       const { viewportWidth: width, viewportHeight: height } = geometry;
-      const xs = { left: width / 6, middle: width / 2, right: width * 5 / 6 };
-      const ys = { up: height / 6, middle: height / 2, down: height * 5 / 6 };
+      const offsetX = geometry.horizontalSpanPx / 2;
+      const offsetY = geometry.verticalSpanPx / 2;
+      const xs = { left: width / 2 - offsetX, middle: width / 2, right: width / 2 + offsetX };
+      const ys = { up: height / 2 - offsetY, middle: height / 2, down: height / 2 + offsetY };
       const points = {
         leftUp: { x: xs.left, y: ys.up },
         middleUp: { x: xs.middle, y: ys.up },
@@ -3018,6 +3068,10 @@
         `# Viewing Distance: ${round(calibration.viewingDistanceCm, 2)} cm`,
         `# Stimulus Type: ${(STIMULUS_TYPES[stimulusType] && STIMULUS_TYPES[stimulusType].name) || stimulusType}`,
         `# Stimulus Size: ${round(ballArcmin, 2)} arcmin (${(ballArcmin / 60).toFixed(2)} deg)`,
+        ...(moduleKey === "saccade" ? [
+          `# Horizontal Target Span: ${round(saccadeTargetLayout(settings, calibration, screenPixels).horizontalArcmin, 2)} arcmin (left-to-right target centers)`,
+          `# Vertical Target Span: ${round(saccadeTargetLayout(settings, calibration, screenPixels).verticalArcmin, 2)} arcmin (top-to-bottom target centers)`
+        ] : []),
         `# Movement Speed: ${settings.speedArcminSec ? settings.speedArcminSec + " arcmin/s" : "N/A"}`,
         `# Hit Distance Threshold: ${thresholdDeg} deg (${thresholdArcmin} arcmin / approx. ${thresholdPx} px screen radius)`,
         `# GUI Distance Threshold: ${thresholdDetails.baseDeg} deg`,
@@ -3228,12 +3282,17 @@
         };
         const initialViewport = readStageViewport();
         const targetSize = stimulusPixels(ballArcmin, calibration, screenPixels);
+        const saccadeLayout = moduleKey === "saccade" ? saccadeTargetLayout(settings, calibration, screenPixels) : null;
         const geometry = {
           viewportWidth: initialViewport.width,
           viewportHeight: initialViewport.height,
           targetWidth: targetSize.width,
           targetHeight: targetSize.height
         };
+        if (saccadeLayout) {
+          geometry.horizontalSpanPx = saccadeLayout.width;
+          geometry.verticalSpanPx = saccadeLayout.height;
+        }
         const center = { x: geometry.viewportWidth / 2, y: geometry.viewportHeight / 2 };
         const currentCenter = { x: center.x, y: center.y };
 
@@ -3411,8 +3470,7 @@
         const geometryIsValid = () => {
           if (!Number.isFinite(geometry.targetWidth) || !Number.isFinite(geometry.targetHeight)) return false;
           if (geometry.targetWidth >= geometry.viewportWidth || geometry.targetHeight >= geometry.viewportHeight) return false;
-          if (moduleKey === "saccade" && (geometry.targetWidth > geometry.viewportWidth / 3 || geometry.targetHeight > geometry.viewportHeight / 3)) return false;
-          return true;
+          return !targetFitError(moduleKey, settings, calibration, { width: geometry.viewportWidth, height: geometry.viewportHeight });
         };
 
         const onVisibilityChange = () => {

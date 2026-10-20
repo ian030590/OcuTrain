@@ -87,7 +87,8 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
     window.testApi = { AppState, beginTobiiTrial, finishTobiiTrial, finishWebGazerTrial,
       connectTobiiBridge, bindInjectedTobiiClient, EyeTrainingPlugin, GazeValidationPlugin,
       OptionalWebGazerCameraPlugin, createCalibration, sessionBanner, saccadeFixationSummary,
-      saveDesktopDocument, desktopSaveStatus };
+      saveDesktopDocument, desktopSaveStatus, readModuleSettings, moduleFormFields,
+      targetFitError, saveStoredModuleSettings, readStoredModuleSettings };
     jsPsych.run([`), context);
   return { window, document, jsPsych, timers, frames, savedCsvs, alerts, api: window.testApi,
     setNow: value => { now = value; },
@@ -239,6 +240,86 @@ function csvRows(app) {
     return Object.fromEntries(values.map((value, index) => [headers[index], value.replace(/^"|"$/g, "").replace(/""/g, '"')]));
   });
 }
+
+function settingsForm(values) {
+  return { elements: { namedItem: name => name in values
+    ? { value: String(values[name]), dataset: { label: name } } : null } };
+}
+
+test("every module reads and retains the entered hit threshold through saving and scoring", () => {
+  for (const module of ["vor", "pursuit", "fixation", "saccade"]) {
+    const app = loadApp();
+    app.api.AppState.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+    const form = settingsForm({ ...app.api.AppState.moduleSettings[module], directions: '["rightMiddle"]',
+      distanceThresholdArcmin: 1081, horizontalSpanArcmin: 600, verticalSpanArcmin: 600 });
+    const result = app.api.readModuleSettings(form, module);
+    assert.equal(result.errors.length, 0);
+    assert.equal(result.values.distanceThresholdArcmin, 1081);
+    app.api.saveStoredModuleSettings({ [module]: result.values });
+    const restored = app.api.readStoredModuleSettings()[module];
+    assert.equal(restored.distanceThresholdArcmin, 1081);
+    const finish = startTraining(app, "tobii", { module, settings: restored });
+    assert.equal(finish().threshold_setting_deg, 18.02);
+  }
+});
+
+test("threshold controls share a calibrated range and reject invalid settings", () => {
+  const app = loadApp();
+  app.api.AppState.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+  const html = app.api.moduleFormFields("saccade", app.api.AppState.moduleSettings.saccade);
+  const sliderMax = Number(html.match(/id="slider-threshold-arcmin"[\s\S]*?max="([^"]+)"/)[1]);
+  const numberMax = Number(html.match(/id="threshold-arcmin"[^>]*max="([^"]+)"/)[1]);
+  assert.ok(sliderMax > 1081);
+  assert.equal(sliderMax, numberMax);
+  for (const threshold of ["", 0, -1, 9, NaN, Infinity, sliderMax + 1]) {
+    const parsed = app.api.readModuleSettings(settingsForm({ ballArcmin: 60, changeMs: 500, totalSec: 1,
+      distanceThresholdArcmin: threshold }), "vor");
+    assert.ok(parsed.errors.length > 0, `Rejected threshold: ${threshold}`);
+  }
+});
+
+test("saccade spans change displayed coordinates using physical calibration, independently of scoring", () => {
+  const firstTarget = (settings = {}, calibrationValues = {}) => {
+    const app = loadApp();
+    app.api.AppState.tobii.clockOffsetMs = 0;
+    const finish = startTraining(app, "tobii", { module: "saccade", calibrationValues,
+      settings: { mode: "predictable", dwellMs: 500, totalSec: 10, directions: ["rightUp"],
+        horizontalSpanArcmin: 300, verticalSpanArcmin: 300, ...settings } });
+    app.setNow(2000); app.runFrame();
+    app.setNow(2010); app.emit(gaze(.5, .5, true, 2010000));
+    const record = app.api.AppState.tobii.activeTrial.synchronousRecords.at(-1);
+    const result = finish();
+    assert.equal(result.end_reason, "duration_complete");
+    assert.match(app.savedCsvs[0].content, /Horizontal Target Span:/);
+    return { x: record.stimulus_x_px, y: record.stimulus_y_px };
+  };
+  const near = firstTarget();
+  const expectedX = 960 + 60 * Math.tan(300 * Math.PI / 21600) * 1920 / 53;
+  const expectedY = 540 - 60 * Math.tan(300 * Math.PI / 21600) * 1080 / 30;
+  assert.ok(Math.abs(near.x - expectedX) < .01);
+  assert.ok(Math.abs(near.y - expectedY) < .01);
+  const horizontal = firstTarget({ horizontalSpanArcmin: 600 });
+  assert.ok(horizontal.x > near.x);
+  assert.equal(horizontal.y, near.y);
+  const vertical = firstTarget({ verticalSpanArcmin: 600 });
+  assert.equal(vertical.x, near.x);
+  assert.ok(vertical.y < near.y);
+  assert.deepEqual(firstTarget({ distanceThresholdArcmin: 360 }), near);
+  assert.ok(firstTarget({}, { viewingDistanceCm: 90 }).x > near.x);
+  assert.ok(firstTarget({}, { screenWidthCm: 70 }).x < near.x);
+  const legacy = firstTarget({ horizontalSpanArcmin: undefined, verticalSpanArcmin: undefined });
+  assert.deepEqual(legacy, { x: 1600, y: 180 });
+});
+
+test("saccade bounds include target radius and reject spans that no longer fit after recalibration", () => {
+  const app = loadApp();
+  const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+  const settings = { ballArcmin: 60, horizontalSpanArcmin: 600, verticalSpanArcmin: 600 };
+  assert.equal(app.api.targetFitError("saccade", settings, calibration), "");
+  assert.match(app.api.targetFitError("saccade", { ...settings, verticalSpanArcmin: calibration.verticalArcmin }, calibration), /beyond the screen/);
+  assert.match(app.api.targetFitError("saccade", settings, { ...calibration, viewingDistanceCm: 240 }), /beyond the screen/);
+  assert.match(app.api.targetFitError("saccade", settings, calibration, { width: 200, height: 200 }), /beyond the screen/);
+});
 
 for (const source of ["tobii", "webgazer"]) {
   test(`${source} pursuit excludes the cross and keeps a visible target through the return to center`, () => {

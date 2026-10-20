@@ -1,8 +1,8 @@
-- Windows 宿主改為 **Tauri 2 + Rust**，沿用系統 WebView2，移除 .NET 執行環境。
-- 保留 Tobii 原生串流、SDK 時鐘對齊、WebGazer 本機模型與 Accuracy／TFF 計算。
-- 依目前螢幕與視窗實體座標處理 DPI、全螢幕及眼動座標。
-- CSV／JSON 由 Rust 儲存至執行檔旁的 `Data/`，存檔失敗會顯示錯誤。
+- 修正 Hit Distance Threshold 修改後未儲存、訓練仍使用預設門檻的問題，適用全部模組。
+- 門檻滑桿與數字欄共用依螢幕對角視角計算的上限，移除原滑桿 360 arcmin 的固定限制；刺激大小滑桿與數字欄範圍也已同步。
+- Saccade 新增 **Horizontal／Vertical Target Span**，設定左右／上下兩側目標中心之間的總視角；刺激位置依實體螢幕尺寸及觀看距離換算，並檢查目標半徑，避免超出畫面。
+- CSV 新增水平／垂直目標範圍，方便核對訓練設定。Hit Distance Threshold 僅控制命中容許誤差，不改變刺激位置。
 
-Windows x64 免安裝版：`OcuTrain_1.2.0_x64-portable.exe`（需 Microsoft Edge WebView2 Runtime）。
+Windows x64 免安裝版：`OcuTrain_1.2.1_x64-portable.exe`（需 Microsoft Edge WebView2 Runtime）。
 
-從 v1.1.0 升級後，請重新設定螢幕尺寸、觀看距離與校正。
+請關閉舊程式後執行新版本。未曾設定 Saccade 目標範圍時，沿用原九宮格各格中央的位置。
