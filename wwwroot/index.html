@@ -431,6 +431,7 @@
     .session-copy strong { display: block; margin-bottom: 3px; font-size: 14px; }
     .session-copy span { color: var(--muted); font-size: 12px; }
     .session-copy [data-upload-status] { display: block; margin-top: 3px; }
+    .session-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
     .module-grid {
       display: grid;
@@ -1219,7 +1220,37 @@
     .dialog-header { background: var(--panel); backdrop-filter: none; }
     .eyebrow { color: var(--muted); letter-spacing: .06em; }
 
+    .diplopia-shell { max-width: 1000px; }
+    .diplopia-shell h1 { font-size: clamp(26px, 4vw, 36px); margin: 0 0 12px; }
+    .diplopia-shell p { line-height: 1.65; }
+    .diplopia-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: center; margin-top: 24px; }
+    .diplopia-figure { margin: 0; min-width: 0; }
+    #diplopia-chart { display: block; width: 100%; color: var(--text); cursor: crosshair; }
+    .diplopia-guide { fill: none; stroke: var(--line); }
+    .diplopia-ray { stroke: var(--line-strong); stroke-width: 2; }
+    .diplopia-direction-label { fill: var(--text); font-size: 17px; text-anchor: middle; dominant-baseline: middle; }
+    .diplopia-mark { fill: none; stroke: currentColor; stroke-width: 3; }
+    .diplopia-figure figcaption { color: var(--muted); text-align: center; line-height: 1.6; }
+    .diplopia-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .diplopia-field { min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line-strong); border-radius: 6px; }
+    .diplopia-field legend { padding: 0 4px; font-weight: 700; }
+    .diplopia-answer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    .diplopia-answer > input { width: 84px; min-height: 44px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 4px; color: var(--text); background: var(--panel); }
+    .diplopia-answer > input:disabled { opacity: .45; }
+    .diplopia-none { display: flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; }
+    .diplopia-none input { width: 20px; height: 20px; margin: 0; accent-color: var(--text); }
+    .diplopia-angle { display: block; margin-top: 6px; color: var(--muted); font-size: 13px; }
+    .diplopia-results { margin: -8px 0 28px; padding: 20px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); }
+    .diplopia-results h2 { margin: 0 0 8px; font-size: 20px; }
+    .diplopia-results p { color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+    .diplopia-result-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
+    .diplopia-result-grid > div { padding: 10px 0; border-top: 1px solid var(--line); }
+    .diplopia-result-grid dt { color: var(--muted); font-size: 13px; }
+    .diplopia-result-grid dd { margin: 6px 0 0; font-weight: 700; }
+
     @media (max-width: 780px) {
+      .diplopia-layout { grid-template-columns: 1fr; gap: 24px; }
+      .diplopia-figure { width: min(440px, 100%); margin: 0 auto; }
       .setup-layout, .module-grid { grid-template-columns: 1fr; }
       .field-grid { grid-template-columns: 1fr; }
       .menu-hero { align-items: flex-start; flex-direction: column; }
@@ -1230,6 +1261,7 @@
     }
 
     @media (max-width: 520px) {
+      .diplopia-result-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .app-page { padding: 18px 14px 34px; }
       .topbar { align-items: flex-start; margin-bottom: 38px; }
       .status-pills .pill:first-child { display: none; }

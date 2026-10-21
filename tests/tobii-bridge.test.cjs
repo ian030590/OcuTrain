@@ -8,8 +8,7 @@ const root = path.resolve(__dirname, "..");
 const appSource = fs.readFileSync(path.join(root, "wwwroot/app.js"), "utf8");
 const desktopAdapter = fs.readFileSync(path.join(root, "wwwroot/desktop.js"), "utf8");
 
-function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false, saveError = null } = {}) {
-  const storage = new Map();
+function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false, saveError = null, storage = new Map() } = {}) {
   const timers = new Map();
   const frames = new Map();
   const handlers = new Map();
@@ -69,7 +68,7 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
     } } : {})
   };
   const jsPsych = { extensions: {}, run() {}, data: { addProperties() {} },
-    pluginAPI: { getKeyboardResponse() {}, cancelKeyboardResponse() {},
+    pluginAPI: { getKeyboardResponse(options) { jsPsych.keyboardResponse = options.callback_function; }, cancelKeyboardResponse() {},
       clearAllTimeouts() {}, setTimeout: schedule }, finishTrial() {} };
   const context = vm.createContext({ window, document, localStorage: window.localStorage,
     navigator: { onLine: false }, console, URLSearchParams, alert: message => alerts.push(message),
@@ -88,9 +87,10 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       connectTobiiBridge, bindInjectedTobiiClient, EyeTrainingPlugin, GazeValidationPlugin,
       OptionalWebGazerCameraPlugin, createCalibration, sessionBanner, saccadeFixationSummary,
       saveDesktopDocument, desktopSaveStatus, readModuleSettings, moduleFormFields,
-      targetFitError, saveStoredModuleSettings, readStoredModuleSettings };
+      targetFitError, saveStoredModuleSettings, readStoredModuleSettings,
+      recordCompletedPractice, readDiplopiaProgress, diplopiaAngleDeg, updateSubjectId };
     jsPsych.run([`), context);
-  return { window, document, jsPsych, timers, frames, savedCsvs, alerts, api: window.testApi,
+  return { window, document, jsPsych, timers, frames, savedCsvs, alerts, storage, api: window.testApi,
     setNow: value => { now = value; },
     emit: payload => handlers.get(payload.type === "status" ? "tobii-status" : "tobii-gaze")({ payload }),
     runTimer(delay) {
@@ -194,13 +194,25 @@ test("the injected bridge client binds its events once", () => {
   assert.equal(app.api.AppState.tobii.activeTrial.samples.length, 1);
 });
 
-function startTraining(app, source = "tobii", { module = "vor", settings = {}, calibrationValues = {} } = {}) {
+function startTraining(app, source = "tobii", { module = "vor", settings = {}, calibrationValues = {}, completeQuestionnaire = true } = {}) {
   const stage = { getBoundingClientRect: () => ({ width: 1920, height: 1080 }) };
   const stimulus = { style: { setProperty(name, value) { this[name] = value; }, removeProperty(name) { delete this[name]; } }, classList: { add() {}, remove() {}, toggle() {} } };
   const number = { style: { setProperty() {} } };
+  const questionnaire = new Map();
+  const element = selector => {
+    if (!questionnaire.has(selector)) questionnaire.set(selector, {
+      value: "", checked: false, disabled: false, innerHTML: "", textContent: "",
+      handlers: {}, classList: { toggle() {} }, focus() { this.focused = true; },
+      addEventListener(type, handler) { this.handlers[type] = handler; }, querySelector: element
+    });
+    return questionnaire.get(selector);
+  };
+  const chart = element("#diplopia-chart");
+  chart.createSVGPoint = () => ({ matrixTransform() { return this; } });
+  chart.getScreenCTM = () => ({ inverse() {} });
   const display = { innerHTML: "", querySelector: selector => ({
     "#training-stage": stage, "#training-stimulus": stimulus, "#stimulus-number": number
-  })[selector] };
+  })[selector] || element(selector) };
   app.api.AppState.eyeTracking.source = source;
   let result;
   app.jsPsych.finishTrial = value => { result = value; };
@@ -210,11 +222,255 @@ function startTraining(app, source = "tobii", { module = "vor", settings = {}, c
     eye_tracking: { source, enabled: source !== "off" }, fullscreen_entered: true
   });
   app.runFrame();
-  const finish = () => { app.runTimer((settings.totalSec || 1) * 1000); return result; };
+  const submit = () => element("#diplopia-form").handlers.submit({ preventDefault() {} });
+  const finish = () => {
+    app.runTimer((settings.totalSec || 1) * 1000);
+    if (completeQuestionnaire && !result) {
+      for (const direction of ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"]) {
+        const none = element(`#no-diplopia-${direction}`);
+        none.checked = true;
+        none.handlers.change();
+      }
+      submit();
+    }
+    return result;
+  };
+  finish.display = display;
+  finish.field = element;
+  finish.submitQuestionnaire = submit;
+  finish.result = () => result;
   finish.stimulus = stimulus;
   finish.number = number;
   return finish;
 }
+
+test("the first daily practice in any module waits for eight answers and exports calibrated angles", () => {
+  for (const module of ["vor", "pursuit", "saccade", "fixation"]) {
+    const app = loadApp();
+    const finish = startTraining(app, "off", { module, completeQuestionnaire: false });
+    app.setNow(2000);
+    assert.equal(finish(), undefined);
+    assert.match(finish.display.innerHTML, /複視位置問卷/);
+    assert.equal(app.savedCsvs.length, 0);
+    app.setNow(10000);
+    finish.submitQuestionnaire();
+    assert.equal(finish.result(), undefined);
+    assert.match(finish.field("#diplopia-error").textContent, /左上/);
+
+    const directions = ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"];
+    for (const [index, direction] of directions.entries()) {
+      const input = finish.field(`#diplopia-${direction}`);
+      input.value = index === 0 ? "0" : index === 7 ? "100" : String(index * 10);
+      input.handlers.input();
+    }
+    assert.match(finish.field("#diplopia-progress").textContent, /8 \/ 8/);
+    finish.field("#diplopia-middleUp").value = "101";
+    finish.submitQuestionnaire();
+    assert.equal(finish.result(), undefined);
+    const none = finish.field("#no-diplopia-middleUp");
+    none.checked = true;
+    none.handlers.change();
+    assert.equal(finish.field("#diplopia-middleUp").disabled, true);
+    assert.equal(finish.field("#diplopia-middleUp").value, "");
+    assert.match(finish.field('[data-diplopia-marker="middleUp"]').innerHTML, /<path/);
+    finish.submitQuestionnaire();
+    const result = finish.result();
+    assert.equal(result.end_reason, "duration_complete");
+    const questionnaire = result.diplopia_questionnaire;
+    assert.equal(questionnaire.responses.length, 8);
+    assert.equal(questionnaire.responses[0].onset_percent, 0);
+    assert.equal(questionnaire.responses[0].onset_angle_deg, 0);
+    assert.equal(questionnaire.responses[0].onset_x_norm, .5);
+    assert.equal(questionnaire.responses[1].no_diplopia, true);
+    assert.equal(questionnaire.responses[1].onset_percent, null);
+    assert.equal(questionnaire.responses[1].onset_angle_deg, null);
+    assert.equal(questionnaire.responses[1].onset_x_norm, null);
+    assert.equal(questionnaire.responses[7].onset_percent, 100);
+    assert.equal(questionnaire.responses[7].onset_x_norm, 1);
+    assert.equal(questionnaire.responses[7].onset_y_norm, 1);
+    const expectedAngle = Math.round(Math.atan(Math.hypot(26.5, 15) / 60) * 180 / Math.PI * 1000) / 1000;
+    assert.equal(questionnaire.responses[7].onset_angle_deg, expectedAngle);
+    assert.match(finish.field("#diplopia-angle-rightDown").textContent, new RegExp(`${expectedAngle.toFixed(2)}°`));
+    assert.equal(result.diplopia_questionnaire_status, "completed");
+    assert.equal(result.diplopia_schedule.completed_practice_count, 1);
+    assert.equal(questionnaire.source_session_id, result.session_id);
+    assert.equal(result.actual_duration_ms, 1000);
+    assert.equal(app.savedCsvs.length, 1);
+    const csv = app.savedCsvs[0].content;
+    assert.match(csv, /# Diplopia Up: X \(no diplopia\)/);
+    assert.match(csv, new RegExp(`# Diplopia Bottom-Right: angle_deg=${expectedAngle};`));
+    assert.match(app.api.sessionBanner(result), /各方向複視角度/);
+    assert.match(app.api.sessionBanner(result), new RegExp(`${expectedAngle.toFixed(2)}°`));
+    const savedAnswers = JSON.parse(csv.split(/\r?\n/).find(line => line.startsWith("# Diplopia Questionnaire: ")).slice("# Diplopia Questionnaire: ".length));
+    assert.deepEqual(savedAnswers, JSON.parse(JSON.stringify(questionnaire)));
+    finish.submitQuestionnaire();
+    assert.equal(app.savedCsvs.length, 1);
+  }
+});
+
+test("evaluation completion also requires a fresh eight-direction questionnaire", () => {
+  for (const module of ["pursuit", "saccade", "fixation"]) {
+    const app = loadApp();
+    const finish = startTraining(app, "off", { module, completeQuestionnaire: false,
+      settings: { mode: "evaluation", speedArcminSec: 10000, holdSec: .1, dwellMs: 100, directions: ["rightMiddle"] } });
+    for (let frame = 1; frame <= 60 && !finish.display.innerHTML.includes('id="diplopia-form"'); frame++) {
+      app.setNow(1000 + frame * 1000);
+      app.runFrame();
+    }
+    assert.match(finish.display.innerHTML, /id="diplopia-form"/);
+    assert.equal(finish.result(), undefined);
+    assert.equal(app.savedCsvs.length, 0);
+    assert.equal(finish.field("#diplopia-rightMiddle").value, "");
+    assert.equal(finish.field("#no-diplopia-rightMiddle").checked, false);
+    for (const direction of ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"]) {
+      const none = finish.field(`#no-diplopia-${direction}`);
+      none.checked = true;
+      none.handlers.change();
+    }
+    finish.submitQuestionnaire();
+    assert.equal(finish.result().end_reason, "evaluation_complete");
+    assert.equal(finish.result().diplopia_questionnaire.responses.length, 8);
+    assert.ok(finish.result().diplopia_questionnaire.responses.every(response => response.no_diplopia && response.onset_percent === null));
+    assert.equal(app.savedCsvs.length, 1);
+  }
+});
+
+test("chart clicks replace a no-diplopia cross with the selected direction's onset", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  finish();
+  const chart = finish.field("#diplopia-chart");
+  const none = finish.field("#no-diplopia-rightMiddle");
+  none.checked = true;
+  none.handlers.change();
+  chart.handlers.click({ clientX: 335, clientY: 240 });
+  assert.equal(none.checked, false);
+  assert.equal(finish.field("#diplopia-rightMiddle").value, "50");
+  assert.equal(finish.field("#diplopia-rightMiddle").disabled, false);
+  assert.match(finish.field('[data-diplopia-marker="rightMiddle"]').innerHTML, /<circle cx="335" cy="240"/);
+  chart.handlers.click({ clientX: 50, clientY: 50 });
+  assert.equal(finish.field("#diplopia-leftUp").value, "100");
+  none.checked = true;
+  none.handlers.change();
+  none.checked = false;
+  none.handlers.change();
+  finish.submitQuestionnaire();
+  assert.equal(finish.result(), undefined);
+  assert.equal(finish.field("#diplopia-rightMiddle").value, "");
+});
+
+test("an interrupted module exports immediately without a completed questionnaire", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  app.jsPsych.keyboardResponse();
+  assert.equal(finish.result().end_reason, "escape");
+  assert.equal(finish.result().diplopia_questionnaire, undefined);
+  assert.doesNotMatch(finish.display.innerHTML, /id="diplopia-form"/);
+  assert.equal(app.savedCsvs.length, 1);
+  assert.equal(app.api.readDiplopiaProgress(finish.result().subject_id).completed_count, 0);
+});
+
+test("diplopia angles use eccentricity from center, calibrated physical axes and original training viewport", () => {
+  const app = loadApp();
+  const session = { calibration: app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 }),
+    viewport: { width: 1920, height: 1080 }, screen_pixels: { width: 1920, height: 1080 } };
+  const expected = (x, y) => Math.round(Math.atan(Math.hypot(x, y) / 60) * 180 / Math.PI * 1000) / 1000;
+  for (const [x, y] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
+    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 100, session), expected(x * 26.5, y * 15));
+    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 50, session), expected(x * 13.25, y * 7.5));
+    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 0, session), 0);
+  }
+  const smallerViewport = { ...session, viewport: { width: 960, height: 540 } };
+  assert.equal(app.api.diplopiaAngleDeg({ x: 1, y: 1 }, 100, smallerViewport), expected(13.25, 7.5));
+  const farther = { ...session, calibration: { ...session.calibration, viewingDistanceCm: 120 } };
+  assert.equal(app.api.diplopiaAngleDeg({ x: 1, y: 1 }, 100, farther), expected(13.25, 7.5));
+});
+
+test("questionnaire scheduling counts each participant across modules and local calendar days", () => {
+  const app = loadApp();
+  const today = new Date(2026, 9, 21, 23, 59);
+  const tomorrow = new Date(2026, 9, 22, 0, 1);
+  for (let count = 1; count <= 20; count++) {
+    const schedule = app.api.recordCompletedPractice("P001", count < 11 ? today : tomorrow);
+    assert.equal(schedule.completed_practice_count, count);
+    assert.equal(schedule.practice_date, count < 11 ? "2026-10-21" : "2026-10-22");
+    assert.equal(schedule.questionnaire_due, [1, 10, 11, 20].includes(count));
+  }
+  assert.equal(app.api.recordCompletedPractice("P002", tomorrow).completed_practice_count, 1);
+  assert.equal(app.api.recordCompletedPractice("P002", tomorrow).questionnaire_due, false);
+  const sameDay = app.api.recordCompletedPractice("P001", tomorrow);
+  assert.equal(sameDay.completed_practice_count, 21);
+  assert.equal(sameDay.questionnaire_due, false);
+});
+
+test("restarting preserves counts and simultaneous daily/tenth triggers produce one questionnaire", () => {
+  const app = loadApp();
+  const day = new Date(2026, 9, 21, 12);
+  for (let count = 0; count < 9; count++) app.api.recordCompletedPractice("P001", day);
+  const restarted = loadApp({ storage: app.storage });
+  const schedule = restarted.api.recordCompletedPractice("P001", new Date(2026, 9, 22, 1));
+  assert.equal(schedule.completed_practice_count, 10);
+  assert.equal(schedule.questionnaire_due, true);
+  assert.equal(schedule.reasons.join(","), "first_of_day,every_tenth_practice");
+  assert.equal(restarted.api.recordCompletedPractice("P001", new Date(2026, 9, 22, 2)).questionnaire_due, false);
+});
+
+test("skipped questionnaires carry the original measured angles and timestamp through restart and recalibration", () => {
+  const app = loadApp();
+  app.api.updateSubjectId("P001");
+  const first = startTraining(app, "off", { completeQuestionnaire: false });
+  first();
+  const directions = ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"];
+  directions.forEach(direction => {
+    const input = first.field(`#diplopia-${direction}`);
+    input.value = "50";
+    input.handlers.input();
+  });
+  first.submitQuestionnaire();
+  const measured = JSON.parse(JSON.stringify(first.result().diplopia_questionnaire));
+  const restarted = loadApp({ storage: app.storage });
+  const next = startTraining(restarted, "off", { module: "fixation", completeQuestionnaire: false,
+    calibrationValues: { viewingDistanceCm: 120 } });
+  const result = next();
+  assert.doesNotMatch(next.display.innerHTML, /id="diplopia-form"/);
+  assert.equal(result.diplopia_schedule.completed_practice_count, 2);
+  assert.equal(result.diplopia_questionnaire_status, "carried_forward");
+  assert.deepEqual(JSON.parse(JSON.stringify(result.diplopia_questionnaire)), measured);
+  assert.equal(restarted.savedCsvs.length, 1);
+  assert.match(restarted.savedCsvs[0].content, /# Diplopia Questionnaire Status: carried_forward/);
+  assert.match(restarted.savedCsvs[0].content, new RegExp(`angle_deg=${measured.responses[0].onset_angle_deg}`));
+  assert.match(restarted.api.sessionBanner(result), /沿用最近一次問卷/);
+  assert.match(restarted.api.sessionBanner(result), new RegExp(measured.submitted_at));
+  restarted.api.updateSubjectId("P002");
+  const other = startTraining(restarted, "off", { completeQuestionnaire: false });
+  assert.equal(other(), undefined);
+  assert.match(other.display.innerHTML, /id="diplopia-form"/);
+  assert.equal(restarted.api.readDiplopiaProgress("P002").latest_questionnaire, null);
+});
+
+test("only practices 1, 10 and 20 show a questionnaire within the same day", () => {
+  const app = loadApp();
+  for (let count = 1; count <= 21; count++) {
+    const finish = startTraining(app, "off", { module: ["vor", "pursuit", "saccade", "fixation"][(count - 1) % 4] });
+    const result = finish();
+    assert.equal(result.diplopia_schedule.completed_practice_count, count);
+    assert.equal(result.diplopia_questionnaire_status, [1, 10, 20].includes(count) ? "completed" : "carried_forward");
+    assert.equal(finish.display.innerHTML.includes('id="diplopia-form"'), [1, 10, 20].includes(count));
+    assert.equal(app.savedCsvs.length, count);
+  }
+});
+
+test("invalid stored progress and incomplete stored answers cannot appear as measured results", () => {
+  for (const stored of ["{", "null", JSON.stringify({ completed_count: -1, last_practice_date: null })]) {
+    const storage = new Map([["oculomotor-diplopia-progress-v1:P001", stored]]);
+    const app = loadApp({ storage });
+    assert.equal(app.api.recordCompletedPractice("P001").completed_practice_count, 1);
+    assert.equal(app.api.readDiplopiaProgress("P001").latest_questionnaire, null);
+  }
+  const storage = new Map([["oculomotor-diplopia-progress-v1:P001", JSON.stringify({ completed_count: 3,
+    last_practice_date: "2026-10-21", latest_questionnaire: { source_session_id: "bad", submitted_at: "2026-10-21", responses: [] } })]]);
+  assert.equal(loadApp({ storage }).api.readDiplopiaProgress("P001").latest_questionnaire, null);
+});
 
 function trackedTraining(source, module, settings) {
   const app = loadApp();

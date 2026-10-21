@@ -1487,15 +1487,17 @@
               <strong>${module.code} ${completed ? "Session Completed" : "Session Interrupted"} · Accuracy: <span style="color:var(--lime, #63e6ff); font-size:1.15em; font-weight:900;">${acc}</span></strong>
               <span>${reasonLabels[session.end_reason] || session.end_reason} · In-target: <strong>${inSec}</strong> / Valid: <strong>${validSec}</strong> · Threshold: ${session.threshold_deg || 1.5}°</span>
               ${session.module === "saccade" ? `<span>Mean TFF: <strong>${session.tff_mean_ms != null ? session.tff_mean_ms + " ms" : "N/A"}</strong> · Detected: ${session.tff_detected_targets || 0} / ${session.tff_total_targets || 0} targets</span>` : ""}
+              ${session.diplopia_schedule ? `<span lang="zh-Hant">累計第 ${session.diplopia_schedule.completed_practice_count} 次練習</span>` : ""}
               <span data-save-status style="color:var(--muted, #888); font-size:12px;">${window.OcuTrainDesktop ? desktopSaveStatus() : "CSV report downloaded"}</span>
             </div>
           </div>
-          <div style="display:flex; gap:8px; flex-shrink:0;">
+          <div class="session-actions">
             <button class="ghost-button" type="button" data-open-data-folder>Open Data Folder</button>
             <button class="ghost-button" type="button" data-export-session>Export JSON</button>
             <button class="ghost-button" type="button" data-export-csv>Export CSV</button>
           </div>
-        </div>`;
+        </div>
+        ${diplopiaResultsMarkup(session)}`;
     }
 
     function modeOptions(selected) {
@@ -3007,6 +3009,221 @@
       return `"${str.replace(/"/g, '""')}"`;
     }
 
+    const DIPLOPIA_DIRECTIONS = NINE_GRID_SLOTS.filter(slot => slot.type === "dir").map(slot => ({
+      key: slot.key,
+      label: { leftUp: "左上", middleUp: "上", rightUp: "右上", leftMiddle: "左",
+        rightMiddle: "右", leftDown: "左下", middleDown: "下", rightDown: "右下" }[slot.key],
+      x: slot.key.startsWith("left") ? -1 : slot.key.startsWith("right") ? 1 : 0,
+      y: slot.key.endsWith("Up") ? -1 : slot.key.endsWith("Down") ? 1 : 0
+    }));
+
+    const DIPLOPIA_PROGRESS_KEY = "oculomotor-diplopia-progress-v1";
+    const diplopiaProgress = new Map();
+
+    function readDiplopiaProgress(participantId) {
+      if (diplopiaProgress.has(participantId)) return diplopiaProgress.get(participantId);
+      let progress = { completed_count: 0, last_practice_date: null, latest_questionnaire: null };
+      try {
+        const stored = JSON.parse(localStorage.getItem(`${DIPLOPIA_PROGRESS_KEY}:${participantId}`) || "null");
+        if (stored && Number.isSafeInteger(stored.completed_count) && stored.completed_count >= 0
+            && (stored.last_practice_date === null || /^\d{4}-\d{2}-\d{2}$/.test(stored.last_practice_date))) {
+          progress = { ...progress, completed_count: stored.completed_count, last_practice_date: stored.last_practice_date };
+          const latest = stored.latest_questionnaire;
+          if (latest && typeof latest.source_session_id === "string" && typeof latest.submitted_at === "string"
+              && Array.isArray(latest.responses) && latest.responses.length === 8
+              && DIPLOPIA_DIRECTIONS.every(dir => latest.responses.filter(response => response?.direction === dir.key).length === 1)
+              && latest.responses.every(response => response.no_diplopia === true
+                ? response.onset_angle_deg === null
+                : response.no_diplopia === false && Number.isFinite(response.onset_angle_deg)
+                  && response.onset_angle_deg >= 0 && response.onset_angle_deg < 90)) {
+            progress.latest_questionnaire = latest;
+          }
+        }
+      } catch (_) { /* Keep session-local progress if persistent storage is unavailable. */ }
+      diplopiaProgress.set(participantId, progress);
+      return progress;
+    }
+
+    function saveDiplopiaProgress(participantId, progress) {
+      diplopiaProgress.set(participantId, progress);
+      try { localStorage.setItem(`${DIPLOPIA_PROGRESS_KEY}:${participantId}`, JSON.stringify(progress)); } catch (_) {}
+    }
+
+    function recordCompletedPractice(participantId, date = new Date()) {
+      const progress = readDiplopiaProgress(participantId);
+      const localDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+      const count = progress.completed_count + 1;
+      const reasons = [];
+      if (progress.last_practice_date !== localDate) reasons.push("first_of_day");
+      if (count % 10 === 0) reasons.push("every_tenth_practice");
+      saveDiplopiaProgress(participantId, { ...progress, completed_count: count, last_practice_date: localDate });
+      return { practice_date: localDate, completed_practice_count: count, questionnaire_due: reasons.length > 0, reasons };
+    }
+
+    function diplopiaAngleDeg(direction, percent, session) {
+      const calibration = session.calibration;
+      const screen = session.screen_pixels;
+      const dxCm = direction.x * percent / 100 * session.viewport.width / 2 * calibration.screenWidthCm / screen.width;
+      const dyCm = direction.y * percent / 100 * session.viewport.height / 2 * calibration.screenHeightCm / screen.height;
+      return round(Math.atan2(Math.hypot(dxCm, dyCm), calibration.viewingDistanceCm) * 180 / Math.PI, 3);
+    }
+
+    function diplopiaResultsMarkup(session) {
+      const questionnaire = session.diplopia_questionnaire;
+      const measuredAt = questionnaire?.submitted_at;
+      return `
+        <section class="diplopia-results" lang="zh-Hant" aria-label="各方向複視角度">
+          <h2>各方向複視角度</h2>
+          <p>${questionnaire ? `${session.diplopia_questionnaire_status === "carried_forward" ? "沿用最近一次問卷" : "本次問卷"} · 填答時間：${escapeHtml(measuredAt)} · ${escapeHtml(MODULES[questionnaire.source_module]?.code || "")}` : "尚無複視問卷紀錄"}</p>
+          <dl class="diplopia-result-grid">
+            ${DIPLOPIA_DIRECTIONS.map(dir => {
+              const response = questionnaire?.responses.find(answer => answer.direction === dir.key);
+              const value = !response ? "未測量" : response.no_diplopia ? "× 無複視" : `${formatNumber(response.onset_angle_deg, 2)}°`;
+              return `<div><dt>${dir.label}</dt><dd>${value}</dd></div>`;
+            }).join("")}
+          </dl>
+          <p class="field-hint">角度以正前方為 0°，依填答時的螢幕尺寸及觀看距離換算。</p>
+        </section>`;
+    }
+
+    function showDiplopiaQuestionnaire(displayElement, session, onSubmit) {
+      const startedAt = new Date().toISOString();
+      displayElement.innerHTML = `
+        <section class="app-page" lang="zh-Hant" aria-labelledby="diplopia-title">
+          <div class="app-shell diplopia-shell">
+            <h1 id="diplopia-title" tabindex="-1">複視位置問卷</h1>
+            <p class="lede">${MODULES[session.module].code} 已完成 · 受試者：${escapeHtml(session.subject_id)} · 累計第 ${session.diplopia_schedule.completed_practice_count} 次練習</p>
+            <p id="diplopia-instructions">請分別標示八個方向開始出現複視的位置。可點選圖中的方向線，或輸入位置百分比；沒有複視，請在該方向勾選「× 無複視」。</p>
+            <p class="field-hint">中心為 0%，該方向螢幕邊緣為 100%。系統依螢幕尺寸及觀看距離換算複視角度，所有八個方向都需填答。</p>
+            <form id="diplopia-form" novalidate aria-describedby="diplopia-instructions">
+              <div class="diplopia-layout">
+                <figure class="diplopia-figure">
+                  <svg id="diplopia-chart" viewBox="0 0 480 480" role="img" aria-label="八方向複視位置圖，亦可使用各方向的輸入欄位填答">
+                    ${[0.25, 0.5, 0.75, 1].map(fraction => `<rect x="${240 - 190 * fraction}" y="${240 - 190 * fraction}" width="${380 * fraction}" height="${380 * fraction}" class="diplopia-guide" />`).join("")}
+                    ${DIPLOPIA_DIRECTIONS.map(dir => `
+                      <line x1="240" y1="240" x2="${240 + dir.x * 190}" y2="${240 + dir.y * 190}" class="diplopia-ray" />
+                      <text x="${240 + dir.x * 220}" y="${240 + dir.y * 220}" class="diplopia-direction-label">${dir.label}</text>
+                      <g data-diplopia-marker="${dir.key}"></g>`).join("")}
+                    <circle cx="240" cy="240" r="4" fill="currentColor" />
+                  </svg>
+                  <figcaption>● 複視起點　× 無複視</figcaption>
+                </figure>
+                <div class="diplopia-fields">
+                  ${DIPLOPIA_DIRECTIONS.map(dir => `
+                    <fieldset class="diplopia-field">
+                      <legend>${dir.label}</legend>
+                      <div class="diplopia-answer">
+                        <label for="diplopia-${dir.key}" class="sr-only">${dir.label}方向複視起點（%）</label>
+                        <input id="diplopia-${dir.key}" type="number" min="0" max="100" step="any" inputmode="decimal" placeholder="0–100" aria-describedby="diplopia-instructions" />
+                        <span aria-hidden="true">%</span>
+                        <label class="diplopia-none" for="no-diplopia-${dir.key}">
+                          <input id="no-diplopia-${dir.key}" type="checkbox" /> × 無複視
+                        </label>
+                      </div>
+                      <output id="diplopia-angle-${dir.key}" class="diplopia-angle" aria-live="polite">尚未標記</output>
+                    </fieldset>`).join("")}
+                </div>
+              </div>
+              <p id="diplopia-error" class="form-error" role="alert"></p>
+              <div class="form-actions">
+                <p id="diplopia-progress" role="status">已填答 0 / 8 個方向</p>
+                <button class="primary-button" type="submit">送出問卷並返回選單</button>
+              </div>
+            </form>
+          </div>
+        </section>`;
+
+      const form = displayElement.querySelector("#diplopia-form");
+      const chart = displayElement.querySelector("#diplopia-chart");
+      const error = displayElement.querySelector("#diplopia-error");
+      const fields = DIPLOPIA_DIRECTIONS.map(dir => ({
+        ...dir,
+        input: form.querySelector(`#diplopia-${dir.key}`),
+        none: form.querySelector(`#no-diplopia-${dir.key}`),
+        angle: form.querySelector(`#diplopia-angle-${dir.key}`),
+        marker: chart.querySelector(`[data-diplopia-marker="${dir.key}"]`)
+      }));
+      const hasPosition = field => field.input.value.trim() !== "" && Number.isFinite(Number(field.input.value))
+        && Number(field.input.value) >= 0 && Number(field.input.value) <= 100;
+      const update = () => {
+        let answered = 0;
+        fields.forEach(field => {
+          field.input.disabled = field.none.checked;
+          const valid = hasPosition(field);
+          if (field.none.checked || valid) answered++;
+          const fraction = field.none.checked ? 1 : Number(field.input.value) / 100;
+          const x = 240 + field.x * 190 * fraction;
+          const y = 240 + field.y * 190 * fraction;
+          field.marker.innerHTML = field.none.checked
+            ? `<path d="M ${x - 6} ${y - 6} l 12 12 M ${x + 6} ${y - 6} l -12 12" class="diplopia-mark" />`
+            : valid ? `<circle cx="${x}" cy="${y}" r="6" fill="currentColor" />` : "";
+          field.angle.textContent = field.none.checked ? "× 無複視"
+            : valid ? `複視起點 ${formatNumber(diplopiaAngleDeg(field, Number(field.input.value), session), 2)}°` : "尚未標記";
+        });
+        displayElement.querySelector("#diplopia-progress").textContent = `已填答 ${answered} / 8 個方向`;
+        setError(error, "");
+      };
+      fields.forEach(field => {
+        field.input.addEventListener("input", update);
+        field.none.addEventListener("change", () => {
+          field.input.value = "";
+          update();
+        });
+      });
+      chart.addEventListener("click", event => {
+        const point = chart.createSVGPoint();
+        point.x = event.clientX;
+        point.y = event.clientY;
+        const matrix = chart.getScreenCTM();
+        if (!matrix) return;
+        const local = point.matrixTransform(matrix.inverse());
+        const dx = local.x - 240;
+        const dy = local.y - 240;
+        const angle = Math.atan2(dy, dx);
+        const octant = Math.round(angle / (Math.PI / 4));
+        const x = Math.round(Math.cos(octant * Math.PI / 4));
+        const y = Math.round(Math.sin(octant * Math.PI / 4));
+        const field = fields.find(dir => dir.x === x && dir.y === y);
+        field.none.checked = false;
+        field.input.value = String(Math.round(Math.min(1, Math.max(0, (dx * x + dy * y) / (190 * (x * x + y * y)))) * 100));
+        update();
+        field.input.focus({ preventScroll: true });
+      });
+      let submitted = false;
+      form.addEventListener("submit", event => {
+        event.preventDefault();
+        if (submitted) return;
+        const missing = fields.filter(field => !field.none.checked && !hasPosition(field));
+        if (missing.length) {
+          setError(error, `請填寫${missing.map(field => `「${field.label}」`).join("、")}方向的複視起點（0–100%），或勾選「× 無複視」。`);
+          missing[0].input.focus();
+          return;
+        }
+        submitted = true;
+        onSubmit({
+          started_at: startedAt,
+          submitted_at: new Date().toISOString(),
+          position_reference: "0% = viewport center; 100% = directional edge of training viewport",
+          viewport: { ...session.viewport },
+          screen_pixels: { ...session.screen_pixels },
+          calibration: { ...session.calibration },
+          angle_reference: "Degrees from straight ahead: atan2(radial screen offset in cm, viewing distance in cm)",
+          responses: fields.map(field => {
+            const fraction = field.none.checked ? null : Number(field.input.value) / 100;
+            return {
+              direction: field.key,
+              no_diplopia: field.none.checked,
+              onset_percent: fraction === null ? null : Number(field.input.value),
+              onset_angle_deg: fraction === null ? null : diplopiaAngleDeg(field, Number(field.input.value), session),
+              onset_x_norm: fraction === null ? null : (1 + field.x * fraction) / 2,
+              onset_y_norm: fraction === null ? null : (1 + field.y * fraction) / 2
+            };
+          })
+        });
+      });
+      displayElement.querySelector("#diplopia-title").focus();
+    }
+
     function desktopSaveStatus() {
       const result = AppState.desktopSave;
       if (result?.error) return "Save failed. Use Export CSV to retry.";
@@ -3178,6 +3395,18 @@
         `# Eye Tracker Hardware: ${deviceName}`,
         `# Sampling Frequency: ${samplingRateText}`,
         `# Total Gaze Samples: ${records.length}`,
+        ...(trialData.diplopiaSchedule ? [
+          `# Completed Practice Count: ${trialData.diplopiaSchedule.completed_practice_count}`,
+          `# Practice Local Date: ${trialData.diplopiaSchedule.practice_date}`,
+          `# Diplopia Questionnaire Due: ${trialData.diplopiaSchedule.questionnaire_due}`,
+          `# Diplopia Questionnaire Triggers: ${trialData.diplopiaSchedule.reasons.join(", ") || "None"}`,
+          `# Diplopia Questionnaire Status: ${trialData.diplopiaQuestionnaireStatus}`
+        ] : []),
+        ...(trialData.diplopiaQuestionnaire ? [
+          `# Diplopia Questionnaire: ${JSON.stringify(trialData.diplopiaQuestionnaire)}`,
+          ...trialData.diplopiaQuestionnaire.responses.map(response =>
+            `# Diplopia ${DIRECTION_ENGLISH_LABELS[response.direction]}: ${response.no_diplopia ? "X (no diplopia)" : `angle_deg=${response.onset_angle_deg}; onset=${response.onset_percent}%; x_normalized=${response.onset_x_norm}; y_normalized=${response.onset_y_norm}`}`)
+        ] : []),
         `# ------------------------------------------------------------`
       ];
 
@@ -3255,6 +3484,7 @@
       constructor(jsPsych) { this.jsPsych = jsPsych; }
 
       trial(displayElement, trial) {
+        const participantId = subjectId;
         const moduleKey = trial.module;
         const settings = trial.settings;
         const calibration = trial.calibration;
@@ -3633,10 +3863,9 @@
           const tff = moduleKey === "saccade"
             ? saccadeFixationSummary(gazeCapture.synchronousRecords || [], events, calibration, screenPixels) : null;
 
-          // Automatically export synchronous CSV record
-          exportTrialCsvs({
+          const csvData = {
             sessionId,
-            subjectId,
+            subjectId: participantId,
             moduleKey,
             settings,
             calibration,
@@ -3661,10 +3890,11 @@
             thresholdPx: round(thresholdRadiusPx, 1),
             gazeCapture,
             tff
-          });
+          };
 
           const data = {
             session_id: sessionId,
+            subject_id: participantId,
             module: moduleKey,
             mode: moduleKey === "vor" ? "continuous" : settings.mode,
             settings: { ...settings },
@@ -3710,6 +3940,7 @@
             gaze_rejected_timestamp_count: gazeCapture.rejectedTimestampSamples || 0,
             gaze_missing_duration_ms: gazeCapture.missingDurationMs || 0,
             viewport: { width: geometry.viewportWidth, height: geometry.viewportHeight },
+            screen_pixels: { ...screenPixels },
             stimulus: {
               arcsec: ballArcsec,
               arcmin: round(ballArcmin, 2),
@@ -3732,7 +3963,32 @@
             interaction_log: [...AppState.interactions],
             ended_at: new Date().toISOString()
           };
-          finish(data);
+          const complete = questionnaire => {
+            if (questionnaire) {
+              data.diplopia_questionnaire = { ...questionnaire, source_session_id: sessionId, source_module: moduleKey };
+              data.diplopia_questionnaire_status = "completed";
+              saveDiplopiaProgress(participantId, { ...readDiplopiaProgress(participantId), latest_questionnaire: data.diplopia_questionnaire });
+            } else if (data.diplopia_schedule) {
+              data.diplopia_questionnaire = readDiplopiaProgress(participantId).latest_questionnaire;
+              data.diplopia_questionnaire_status = data.diplopia_questionnaire ? "carried_forward" : "not_measured";
+            }
+            csvData.diplopiaQuestionnaire = data.diplopia_questionnaire;
+            csvData.diplopiaSchedule = data.diplopia_schedule;
+            csvData.diplopiaQuestionnaireStatus = data.diplopia_questionnaire_status;
+            exportTrialCsvs(csvData);
+            finish(data);
+          };
+          if (["duration_complete", "evaluation_complete"].includes(reason)) {
+            data.diplopia_schedule = recordCompletedPractice(participantId, new Date(data.ended_at));
+            if (data.diplopia_schedule.questionnaire_due) {
+              void exitFullscreenSafely();
+              showDiplopiaQuestionnaire(displayElement, data, complete);
+            } else {
+              complete();
+            }
+          } else {
+            complete();
+          }
         };
 
         if (usesTobii) {
@@ -4023,7 +4279,10 @@
         gaze_path: { type: ParameterType.STRING },
         gaze_sample_count: { type: ParameterType.INT },
         gaze_downsampled_count: { type: ParameterType.INT },
-        gaze_overflow_count: { type: ParameterType.INT }
+        gaze_overflow_count: { type: ParameterType.INT },
+        diplopia_questionnaire: { type: ParameterType.OBJECT },
+        diplopia_questionnaire_status: { type: ParameterType.STRING },
+        diplopia_schedule: { type: ParameterType.OBJECT }
       }
     };
 
