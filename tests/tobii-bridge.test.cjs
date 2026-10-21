@@ -196,7 +196,7 @@ test("the injected bridge client binds its events once", () => {
 
 function startTraining(app, source = "tobii", { module = "vor", settings = {}, calibrationValues = {} } = {}) {
   const stage = { getBoundingClientRect: () => ({ width: 1920, height: 1080 }) };
-  const stimulus = { style: { setProperty() {}, removeProperty() {} }, classList: { add() {}, remove() {}, toggle() {} } };
+  const stimulus = { style: { setProperty(name, value) { this[name] = value; }, removeProperty(name) { delete this[name]; } }, classList: { add() {}, remove() {}, toggle() {} } };
   const number = { style: { setProperty() {} } };
   const display = { innerHTML: "", querySelector: selector => ({
     "#training-stage": stage, "#training-stimulus": stimulus, "#stimulus-number": number
@@ -210,7 +210,10 @@ function startTraining(app, source = "tobii", { module = "vor", settings = {}, c
     eye_tracking: { source, enabled: source !== "off" }, fullscreen_entered: true
   });
   app.runFrame();
-  return () => { app.runTimer((settings.totalSec || 1) * 1000); return result; };
+  const finish = () => { app.runTimer((settings.totalSec || 1) * 1000); return result; };
+  finish.stimulus = stimulus;
+  finish.number = number;
+  return finish;
 }
 
 function trackedTraining(source, module, settings) {
@@ -246,6 +249,112 @@ function settingsForm(values) {
     ? { value: String(values[name]), dataset: { label: name } } : null } };
 }
 
+for (const module of ["vor", "pursuit", "saccade", "fixation"]) {
+  test(`${module} reads, validates and remembers the number/color interval in milliseconds`, () => {
+    const app = loadApp();
+    app.api.AppState.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+    const defaults = { ...app.api.AppState.moduleSettings[module] };
+    delete defaults.changeMs;
+    app.api.saveStoredModuleSettings({ [module]: defaults });
+    assert.equal(app.api.readStoredModuleSettings()[module].changeMs, 500);
+    const values = { ...defaults, stimulusType: "numbers_dot", changeMs: 875,
+      distanceThresholdArcmin: 90, horizontalSpanArcmin: 300, verticalSpanArcmin: 300,
+      directions: '["rightMiddle"]' };
+    const parsed = app.api.readModuleSettings(settingsForm(values), module);
+    assert.deepEqual(Array.from(parsed.errors), []);
+    assert.equal(parsed.values.changeMs, 875);
+    app.api.saveStoredModuleSettings({ [module]: parsed.values });
+    const restored = app.api.readStoredModuleSettings()[module];
+    assert.equal(restored.changeMs, 875);
+    const html = app.api.moduleFormFields(module, restored);
+    assert.match(html, /Number \+ Color Interval \(ms\)/);
+    assert.match(html, /id="change-ms"[^>]*value="875"/);
+    assert.doesNotMatch(html, /id="number-change-field" hidden/);
+    for (const changeMs of ["", 0, -1, NaN, Infinity]) {
+      const invalid = app.api.readModuleSettings(settingsForm({ ...values, changeMs }), module);
+      assert.ok(invalid.errors.includes("changeMs"), `Rejected interval: ${changeMs}`);
+    }
+    if (module !== "vor") {
+      const hidden = app.api.moduleFormFields(module, { ...restored, stimulusType: "white_dot" });
+      assert.match(hidden, /id="number-change-field" hidden/);
+      const inactive = app.api.readModuleSettings(settingsForm({ ...values, stimulusType: "white_dot", changeMs: "" }), module);
+      assert.deepEqual(Array.from(inactive.errors), []);
+      assert.equal(inactive.values.changeMs, 500);
+      const retained = app.api.readModuleSettings(settingsForm({ ...values, stimulusType: "white_dot" }), module);
+      assert.equal(retained.values.changeMs, 875);
+    }
+  });
+
+  for (const changeMs of [120, 750]) {
+    test(`${module} changes both number and color after ${changeMs} ms`, () => {
+      const app = loadApp();
+      const finish = startTraining(app, "off", { module, settings: {
+        mode: "predictable", stimulusType: "numbers_dot", changeMs, totalSec: 20,
+        horizontalSpanArcmin: 300, verticalSpanArcmin: 300, speedArcminSec: 10,
+        dwellMs: 5000, holdSec: 5, directions: ["rightMiddle"]
+      } });
+      const frame = time => { app.setNow(time); app.runFrame(); };
+      const startedAt = module === "vor" ? 1000 : 2000;
+      if (module !== "vor") frame(startedAt);
+      for (let index = 1; index <= 2; index++) {
+        const digit = finish.number.textContent;
+        const color = finish.stimulus.style["--ball-color"];
+        frame(startedAt + index * changeMs - 1);
+        assert.equal(finish.number.textContent, digit);
+        assert.equal(finish.stimulus.style["--ball-color"], color);
+        frame(startedAt + index * changeMs);
+        assert.notEqual(finish.number.textContent, digit);
+        assert.notEqual(finish.stimulus.style["--ball-color"], color);
+      }
+      assert.equal(finish().settings.changeMs, changeMs);
+    });
+  }
+}
+
+test("saccade number/color timing continues across jumps with shorter dwell times", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { module: "saccade", settings: {
+    mode: "predictable", stimulusType: "numbers_dot", changeMs: 750, dwellMs: 200,
+    totalSec: 20, directions: ["leftMiddle", "rightMiddle"]
+  } });
+  const frame = time => { app.setNow(time); app.runFrame(); };
+  frame(2000);
+  const digit = finish.number.textContent;
+  const color = finish.stimulus.style["--ball-color"];
+  for (const time of [2200, 2400, 2600, 2749]) {
+    frame(time);
+    assert.equal(finish.number.textContent, digit);
+    assert.equal(finish.stimulus.style["--ball-color"], color);
+  }
+  frame(2750);
+  assert.notEqual(finish.number.textContent, digit);
+  assert.notEqual(finish.stimulus.style["--ball-color"], color);
+  assert.equal(finish().completed_targets, 3);
+});
+
+for (const module of ["pursuit", "fixation"]) {
+  test(`${module} keeps number/color timing through the edge transition`, () => {
+    const app = loadApp();
+    const finish = startTraining(app, "off", { module, settings: {
+      mode: "predictable", stimulusType: "numbers_dot", changeMs: 300, totalSec: 20,
+      horizontalSpanArcmin: 300, verticalSpanArcmin: 300, speedArcminSec: 375,
+      holdSec: 5, directions: ["rightMiddle"]
+    } });
+    const frame = time => { app.setNow(time); app.runFrame(); };
+    frame(2000);
+    frame(3000);
+    const digit = finish.number.textContent;
+    const color = finish.stimulus.style["--ball-color"];
+    frame(3299);
+    assert.equal(finish.number.textContent, digit);
+    assert.equal(finish.stimulus.style["--ball-color"], color);
+    frame(3300);
+    assert.notEqual(finish.number.textContent, digit);
+    assert.notEqual(finish.stimulus.style["--ball-color"], color);
+    assert.ok(finish().event_log.some(event => event.event === (module === "pursuit" ? "return_onset" : "fixation_onset")));
+  });
+}
+
 test("every module reads and retains the entered hit threshold through saving and scoring", () => {
   for (const module of ["vor", "pursuit", "fixation", "saccade"]) {
     const app = loadApp();
@@ -255,9 +364,17 @@ test("every module reads and retains the entered hit threshold through saving an
     const result = app.api.readModuleSettings(form, module);
     assert.equal(result.errors.length, 0);
     assert.equal(result.values.distanceThresholdArcmin, 1081);
+    if (module !== "vor") {
+      assert.equal(result.values.horizontalSpanArcmin, 600);
+      assert.equal(result.values.verticalSpanArcmin, 600);
+    }
     app.api.saveStoredModuleSettings({ [module]: result.values });
     const restored = app.api.readStoredModuleSettings()[module];
     assert.equal(restored.distanceThresholdArcmin, 1081);
+    if (module !== "vor") {
+      assert.equal(restored.horizontalSpanArcmin, 600);
+      assert.equal(restored.verticalSpanArcmin, 600);
+    }
     const finish = startTraining(app, "tobii", { module, settings: restored });
     assert.equal(finish().threshold_setting_deg, 18.02);
   }
@@ -278,48 +395,50 @@ test("threshold controls share a calibrated range and reject invalid settings", 
   }
 });
 
-test("saccade span sliders use calibrated screen dimensions, distance and target clearance", () => {
-  const app = loadApp();
-  const render = (calibrationValues = {}, settings = {}) => {
-    const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30,
-      viewingDistanceCm: 60, ...calibrationValues });
-    app.api.AppState.calibration = calibration;
-    const values = { ...app.api.AppState.moduleSettings.saccade, horizontalSpanArcmin: 99999,
-      verticalSpanArcmin: 99999, ...settings };
-    const html = app.api.moduleFormFields("saccade", values);
-    const spans = {};
-    for (const axis of ["horizontal", "vertical"]) {
-      const input = html.match(new RegExp(`<input[^>]*id="${axis}-span-arcmin"[^>]*>`))[0];
-      assert.match(input, /type="range"/);
-      assert.match(input, new RegExp(`name="${axis}SpanArcmin"`));
-      assert.match(input, /min="0.1"/);
-      assert.match(input, /step="0.1"/);
-      const max = Number(input.match(/max="([^"]+)"/)[1]);
-      const value = Number(input.match(/value="([^"]+)"/)[1]);
-      assert.equal(value, max, "previous spans exceeding the new range are clamped");
-      spans[`${axis}SpanArcmin`] = value;
-      const sizeCm = axis === "horizontal" ? calibration.screenWidthCm : calibration.screenHeightCm;
-      const distance = calibration.viewingDistanceCm;
-      const physicalSize = arcmin => 2 * distance * Math.tan(arcmin * Math.PI / 21600);
-      const diameter = physicalSize(values.ballArcmin);
-      assert.ok(physicalSize(max) + diameter <= sizeCm);
-      assert.ok(physicalSize(max + 0.1) + diameter > sizeCm, "maximum uses all available space to 0.1 arcmin");
+for (const module of ["pursuit", "saccade", "fixation"]) {
+  test(`${module} span sliders use calibrated screen dimensions, distance and target clearance`, () => {
+    const app = loadApp();
+    const render = (calibrationValues = {}, settings = {}) => {
+      const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30,
+        viewingDistanceCm: 60, ...calibrationValues });
+      app.api.AppState.calibration = calibration;
+      const values = { ...app.api.AppState.moduleSettings[module], horizontalSpanArcmin: 99999,
+        verticalSpanArcmin: 99999, ...settings };
+      const html = app.api.moduleFormFields(module, values);
+      const spans = {};
+      for (const axis of ["horizontal", "vertical"]) {
+        const input = html.match(new RegExp(`<input[^>]*id="${axis}-span-arcmin"[^>]*>`))[0];
+        assert.match(input, /type="range"/);
+        assert.match(input, new RegExp(`name="${axis}SpanArcmin"`));
+        assert.match(input, /min="0.1"/);
+        assert.match(input, /step="0.1"/);
+        const max = Number(input.match(/max="([^"]+)"/)[1]);
+        const value = Number(input.match(/value="([^"]+)"/)[1]);
+        assert.equal(value, max, "previous spans exceeding the new range are clamped");
+        spans[`${axis}SpanArcmin`] = value;
+        const sizeCm = axis === "horizontal" ? calibration.screenWidthCm : calibration.screenHeightCm;
+        const distance = calibration.viewingDistanceCm;
+        const physicalSize = arcmin => 2 * distance * Math.tan(arcmin * Math.PI / 21600);
+        const diameter = physicalSize(values.ballArcmin);
+        assert.ok(physicalSize(max) + diameter <= sizeCm);
+        assert.ok(physicalSize(max + 0.1) + diameter > sizeCm, "maximum uses all available space to 0.1 arcmin");
+      }
+      assert.equal(app.api.targetFitError(module, { ...values, ...spans }, calibration), "");
+      return spans;
+    };
+    const initial = render();
+    const wider = render({ screenWidthCm: 70 });
+    assert.ok(wider.horizontalSpanArcmin > initial.horizontalSpanArcmin);
+    assert.equal(wider.verticalSpanArcmin, initial.verticalSpanArcmin);
+    const taller = render({ screenHeightCm: 40 });
+    assert.equal(taller.horizontalSpanArcmin, initial.horizontalSpanArcmin);
+    assert.ok(taller.verticalSpanArcmin > initial.verticalSpanArcmin);
+    for (const smaller of [render({ viewingDistanceCm: 90 }), render({}, { ballArcmin: 600 })]) {
+      assert.ok(smaller.horizontalSpanArcmin < initial.horizontalSpanArcmin);
+      assert.ok(smaller.verticalSpanArcmin < initial.verticalSpanArcmin);
     }
-    assert.equal(app.api.targetFitError("saccade", { ...values, ...spans }, calibration), "");
-    return spans;
-  };
-  const initial = render();
-  const wider = render({ screenWidthCm: 70 });
-  assert.ok(wider.horizontalSpanArcmin > initial.horizontalSpanArcmin);
-  assert.equal(wider.verticalSpanArcmin, initial.verticalSpanArcmin);
-  const taller = render({ screenHeightCm: 40 });
-  assert.equal(taller.horizontalSpanArcmin, initial.horizontalSpanArcmin);
-  assert.ok(taller.verticalSpanArcmin > initial.verticalSpanArcmin);
-  for (const smaller of [render({ viewingDistanceCm: 90 }), render({}, { ballArcmin: 600 })]) {
-    assert.ok(smaller.horizontalSpanArcmin < initial.horizontalSpanArcmin);
-    assert.ok(smaller.verticalSpanArcmin < initial.verticalSpanArcmin);
-  }
-});
+  });
+}
 
 test("saccade spans change displayed coordinates using physical calibration, independently of scoring", () => {
   const firstTarget = (settings = {}, calibrationValues = {}) => {
@@ -354,15 +473,68 @@ test("saccade spans change displayed coordinates using physical calibration, ind
   assert.deepEqual(legacy, { x: 1600, y: 180 });
 });
 
-test("saccade bounds include target radius and reject spans that no longer fit after recalibration", () => {
-  const app = loadApp();
-  const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
-  const settings = { ballArcmin: 60, horizontalSpanArcmin: 600, verticalSpanArcmin: 600 };
-  assert.equal(app.api.targetFitError("saccade", settings, calibration), "");
-  assert.match(app.api.targetFitError("saccade", { ...settings, verticalSpanArcmin: calibration.verticalArcmin }, calibration), /beyond the screen/);
-  assert.match(app.api.targetFitError("saccade", settings, { ...calibration, viewingDistanceCm: 240 }), /beyond the screen/);
-  assert.match(app.api.targetFitError("saccade", settings, calibration, { width: 200, height: 200 }), /beyond the screen/);
-});
+for (const module of ["pursuit", "saccade", "fixation"]) {
+  test(`${module} bounds include target radius and reject spans that no longer fit after recalibration`, () => {
+    const app = loadApp();
+    const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+    const settings = { ballArcmin: 60, horizontalSpanArcmin: 600, verticalSpanArcmin: 600 };
+    assert.equal(app.api.targetFitError(module, settings, calibration), "");
+    assert.match(app.api.targetFitError(module, { ...settings, verticalSpanArcmin: calibration.verticalArcmin }, calibration), /beyond the screen/);
+    assert.match(app.api.targetFitError(module, settings, { ...calibration, viewingDistanceCm: 240 }), /beyond the screen/);
+    assert.match(app.api.targetFitError(module, settings, calibration, { width: 200, height: 200 }), /beyond the screen/);
+    for (const axis of ["horizontal", "vertical"]) {
+      const parsed = app.api.readModuleSettings(settingsForm({ ...app.api.AppState.moduleSettings[module],
+        ...settings, [`${axis}SpanArcmin`]: 0 }), module);
+      assert.ok(parsed.errors.includes(`${axis}SpanArcmin`));
+    }
+  });
+}
+
+for (const source of ["tobii", "webgazer"]) {
+  for (const module of ["pursuit", "fixation"]) {
+    test(`${source} ${module} spans set calibrated endpoints, timing and exported settings`, () => {
+      const endpoint = (settings = {}) => {
+        const run = trackedTraining(source, module, { speedArcminSec: 6000, holdSec: 1,
+          directions: ["rightUp"], horizontalSpanArcmin: 300, verticalSpanArcmin: 300, ...settings });
+        run.frame(2000);
+        run.frame(2500);
+        run.sample(2500);
+        const record = run.capture.synchronousRecords.at(-1);
+        assert.equal(record.phase, module === "pursuit" ? "return" : "hold");
+        run.frame(2600);
+        run.sample(2600);
+        const next = run.capture.synchronousRecords.at(-1);
+        if (module === "pursuit") {
+          assert.equal(next.stimulus_x_px, 960);
+          assert.equal(next.stimulus_y_px, 540);
+        } else {
+          assert.equal(next.phase, "hold");
+          assert.equal(next.stimulus_x_px, record.stimulus_x_px);
+          assert.equal(next.stimulus_y_px, record.stimulus_y_px);
+        }
+        const result = run.finish();
+        assert.match(run.app.savedCsvs[0].content, /Horizontal Target Span:/);
+        assert.match(run.app.savedCsvs[0].content, /Vertical Target Span:/);
+        assert.equal(result.settings.horizontalSpanArcmin, settings.horizontalSpanArcmin ?? 300);
+        assert.equal(result.settings.verticalSpanArcmin, settings.verticalSpanArcmin ?? 300);
+        return { x: record.stimulus_x_px, y: record.stimulus_y_px,
+          duration: result.event_log.find(event => event.event === "movement_onset").duration_ms };
+      };
+      const near = endpoint();
+      assert.ok(Math.abs(near.x - (960 + 60 * Math.tan(300 * Math.PI / 21600) * 1920 / 53)) < .01);
+      assert.ok(Math.abs(near.y - (540 - 60 * Math.tan(300 * Math.PI / 21600) * 1080 / 30)) < .01);
+      const horizontal = endpoint({ horizontalSpanArcmin: 600 });
+      assert.ok(horizontal.x > near.x);
+      assert.equal(horizontal.y, near.y);
+      assert.ok(horizontal.duration > near.duration);
+      const vertical = endpoint({ verticalSpanArcmin: 600 });
+      assert.equal(vertical.x, near.x);
+      assert.ok(vertical.y < near.y);
+      assert.ok(vertical.duration > near.duration);
+      assert.deepEqual(endpoint({ distanceThresholdArcmin: 360 }), near);
+    });
+  }
+}
 
 for (const source of ["tobii", "webgazer"]) {
   test(`${source} pursuit excludes the cross and keeps a visible target through the return to center`, () => {

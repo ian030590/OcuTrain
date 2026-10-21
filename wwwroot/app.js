@@ -244,7 +244,7 @@
         code: "PURSUIT",
         name: "Smooth Pursuit",
         short: "Linear target tracking",
-        description: "Follow the target from the center to the screen edge and back. Accuracy includes both movements and excludes the central cross."
+        description: "Follow the target from the center to the configured endpoint and back. Accuracy includes both movements and excludes the central cross."
       },
       saccade: {
         code: "SACCADE",
@@ -256,7 +256,7 @@
         code: "FIXATION",
         name: "Fixation",
         short: "Movement and edge hold",
-        description: "Follow the target to the screen edge and keep your gaze fixed while it remains there. Accuracy includes only the edge hold."
+        description: "Follow the target to the configured endpoint and keep your gaze fixed while it remains there. Accuracy includes only the hold."
       }
     };
 
@@ -286,9 +286,9 @@
 
     const MODULE_DEFAULTS = {
       vor: { ballArcmin: 60, changeMs: 500, totalSec: 30 },
-      pursuit: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, speedArcminSec: 300, totalSec: 45, directions: [...ALL_DIRECTIONS] },
-      saccade: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, dwellMs: 500, totalSec: 45, directions: [...ALL_DIRECTIONS] },
-      fixation: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, speedArcminSec: 300, holdSec: 2, totalSec: 60, directions: [...ALL_DIRECTIONS] }
+      pursuit: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, changeMs: 500, speedArcminSec: 300, totalSec: 45, directions: [...ALL_DIRECTIONS] },
+      saccade: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, changeMs: 500, dwellMs: 500, totalSec: 45, directions: [...ALL_DIRECTIONS] },
+      fixation: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, changeMs: 500, speedArcminSec: 300, holdSec: 2, totalSec: 60, directions: [...ALL_DIRECTIONS] }
     };
 
     const EDGE_SEQUENCE = [
@@ -503,11 +503,15 @@
         : 600;
     }
 
-    function saccadeTargetLayout(settings, calibration, screenPixels = currentScreenPixels()) {
+    function targetSpanLayout(moduleKey, settings, calibration, screenPixels = currentScreenPixels()) {
+      const ballArcmin = settings.ballArcmin || (settings.ballArcsec ? settings.ballArcsec / 60 : 60);
+      const diameterCm = physicalSizeForArcmin(ballArcmin, calibration.viewingDistanceCm);
       const horizontalArcmin = Number(settings.horizontalSpanArcmin)
-        || visualAngleArcmin(calibration.screenWidthCm * 2 / 3, calibration.viewingDistanceCm);
+        || visualAngleArcmin(moduleKey === "saccade" ? calibration.screenWidthCm * 2 / 3
+          : Math.max(0, calibration.screenWidthCm - diameterCm), calibration.viewingDistanceCm);
       const verticalArcmin = Number(settings.verticalSpanArcmin)
-        || visualAngleArcmin(calibration.screenHeightCm * 2 / 3, calibration.viewingDistanceCm);
+        || visualAngleArcmin(moduleKey === "saccade" ? calibration.screenHeightCm * 2 / 3
+          : Math.max(0, calibration.screenHeightCm - diameterCm), calibration.viewingDistanceCm);
       return {
         horizontalArcmin,
         verticalArcmin,
@@ -516,7 +520,7 @@
       };
     }
 
-    function saccadeSpanLimits(settings, calibration) {
+    function targetSpanLimits(settings, calibration) {
       const ballArcmin = settings.ballArcmin || (settings.ballArcsec ? settings.ballArcsec / 60 : 60);
       const diameterCm = physicalSizeForArcmin(ballArcmin, calibration.viewingDistanceCm);
       const maxSpan = screenCm => Math.max(0.1, Math.floor(visualAngleArcmin(
@@ -1552,6 +1556,11 @@
           </div>
         </div>`;
 
+      const changeInterval = `
+        <div id="number-change-field" ${!isVor && stimType !== "numbers_dot" ? "hidden" : ""}>
+          ${numberField({ id: "change-ms", name: "changeMs", label: "Number + Color Interval (ms)", value: settings.changeMs ?? 500, unit: "ms", hint: "Time between number and color changes", step: "1" })}
+        </div>`;
+
       // 3. Target Size
       const sizeSlider = `
         <div class="field span-all" style="margin-top: 4px;">
@@ -1609,15 +1618,11 @@
           <p class="field-hint">Scoring tolerance around the target center. This does not move the target. Tobii adds ${TOBII_ERROR_ALLOWANCE_DEG}°; WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
         </div>`;
 
-      let paramFields = "";
-      if (moduleKey === "vor") {
-        paramFields = `${sizeSlider}${thresholdSlider}
-          ${numberField({ id: "change-ms", name: "changeMs", label: "Shift Interval (ms)", value: settings.changeMs, unit: "ms", hint: "Interval between digit and color changes", step: "1" })}
-          ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Session stops automatically when completed", step: "0.1" })}`;
-      } else if (moduleKey === "saccade") {
-        const layout = saccadeTargetLayout(settings, AppState.calibration);
-        const limits = saccadeSpanLimits(settings, AppState.calibration);
-        const spanSliders = [
+      let spanSliders = "";
+      if (!isVor) {
+        const layout = targetSpanLayout(moduleKey, settings, AppState.calibration);
+        const limits = targetSpanLimits(settings, AppState.calibration);
+        spanSliders = [
           ["horizontal", "Horizontal", "left and right"],
           ["vertical", "Vertical", "top and bottom"]
         ].map(([axis, title, edges]) => {
@@ -1641,7 +1646,15 @@
               <p class="field-hint" id="${axis}-span-hint">Total angle between ${edges} target centers. Maximum uses screen size and viewing distance, with room for the target radius.</p>
             </div>`;
         }).join("");
-        paramFields = `${mode}${stimField}${spanSliders}${sizeSlider}${thresholdSlider}
+      }
+
+      let paramFields = "";
+      if (moduleKey === "vor") {
+        paramFields = `${sizeSlider}${thresholdSlider}
+          ${changeInterval}
+          ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Session stops automatically when completed", step: "0.1" })}`;
+      } else if (moduleKey === "saccade") {
+        paramFields = `${mode}${stimField}${changeInterval}${spanSliders}${sizeSlider}${thresholdSlider}
           ${numberField({ id: "dwell-ms", name: "dwellMs", label: "Target Dwell Time (ms)", value: settings.dwellMs, unit: "ms", hint: "Target duration at each grid position", step: "1" })}
           ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Ignored in Evaluation mode", step: "0.1" })}`;
       } else if (moduleKey === "pursuit") {
@@ -1653,11 +1666,11 @@
           id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec,
           unit: "sec", hint: "Ignored in Evaluation mode", step: "0.1"
         });
-        paramFields = `${mode}${stimField}${sizeSlider}${thresholdSlider}${speed}${total}`;
+        paramFields = `${mode}${stimField}${changeInterval}${spanSliders}${sizeSlider}${thresholdSlider}${speed}${total}`;
       } else if (moduleKey === "fixation") {
         const speed = numberField({
           id: "speed-arcmin", name: "speedArcminSec", label: "Target Speed (arcmin/s)", value: settings.speedArcminSec,
-          unit: "arcmin/sec", hint: "Movement speed toward screen edge", step: "0.1"
+          unit: "arcmin/sec", hint: "Movement speed toward the configured endpoint", step: "0.1"
         });
         const hold = numberField({
           id: "hold-sec", name: "holdSec", label: "Edge Hold Time (s)", value: settings.holdSec,
@@ -1667,7 +1680,7 @@
           id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec,
           unit: "sec", hint: "Ignored in Evaluation mode", step: "0.1"
         });
-        paramFields = `${mode}${stimField}${sizeSlider}${thresholdSlider}${speed}${hold}${total}`;
+        paramFields = `${mode}${stimField}${changeInterval}${spanSliders}${sizeSlider}${thresholdSlider}${speed}${hold}${total}`;
       }
 
       // 4. Movement Directions
@@ -1709,11 +1722,14 @@
       const isVor = moduleKey === "vor";
       const fieldsByModule = {
         vor: ["ballArcmin", "changeMs", "totalSec"],
-        pursuit: ["ballArcmin", "speedArcminSec", "totalSec"],
+        pursuit: ["ballArcmin", "horizontalSpanArcmin", "verticalSpanArcmin", "speedArcminSec", "totalSec"],
         saccade: ["ballArcmin", "horizontalSpanArcmin", "verticalSpanArcmin", "dwellMs", "totalSec"],
-        fixation: ["ballArcmin", "speedArcminSec", "holdSec", "totalSec"]
+        fixation: ["ballArcmin", "horizontalSpanArcmin", "verticalSpanArcmin", "speedArcminSec", "holdSec", "totalSec"]
       };
-      const result = readPositiveNumbers(form, [...fieldsByModule[moduleKey], "distanceThresholdArcmin"]);
+      const stimulusType = form.elements.namedItem("stimulusType")?.value || "white_dot";
+      const fields = [...fieldsByModule[moduleKey], "distanceThresholdArcmin"];
+      if (!isVor && stimulusType === "numbers_dot") fields.push("changeMs");
+      const result = readPositiveNumbers(form, fields);
       if (result.values.distanceThresholdArcmin < 10 || result.values.distanceThresholdArcmin > hitThresholdMaxArcmin()) {
         result.errors.push(`Hit Distance Threshold (10–${hitThresholdMaxArcmin()} arcmin)`);
       }
@@ -1722,7 +1738,12 @@
       }
       if (!isVor) {
         result.values.mode = form.elements.namedItem("mode")?.value || PREDICTABLE;
-        result.values.stimulusType = form.elements.namedItem("stimulusType")?.value || "white_dot";
+        result.values.stimulusType = stimulusType;
+        if (stimulusType !== "numbers_dot") {
+          const changeMs = Number(form.elements.namedItem("changeMs")?.value);
+          result.values.changeMs = Number.isFinite(changeMs) && changeMs > 0
+            ? changeMs : AppState.moduleSettings[moduleKey].changeMs;
+        }
         try {
           const dirVal = form.elements.namedItem("directions")?.value;
           result.values.directions = dirVal ? JSON.parse(dirVal) : [...ALL_DIRECTIONS];
@@ -1743,10 +1764,14 @@
       if (size.width >= viewport.width || size.height >= viewport.height) {
         return "The target is too large for the available screen area. Reduce the target visual angle.";
       }
-      if (moduleKey === "saccade") {
-        const layout = saccadeTargetLayout(settings, calibration, screenPixels);
-        if (layout.width + size.width > viewport.width || layout.height + size.height > viewport.height) {
-          return "The Saccade target extends beyond the screen. Reduce the horizontal/vertical target span or target visual angle.";
+      if (moduleKey !== "vor") {
+        const layout = targetSpanLayout(moduleKey, settings, calibration, screenPixels);
+        const checkHorizontal = moduleKey === "saccade" || Number(settings.horizontalSpanArcmin) > 0;
+        const checkVertical = moduleKey === "saccade" || Number(settings.verticalSpanArcmin) > 0;
+        if ((checkHorizontal && layout.width + size.width > viewport.width)
+          || (checkVertical && layout.height + size.height > viewport.height)) {
+          const name = moduleKey === "saccade" ? "Saccade" : MODULES[moduleKey].code;
+          return `The ${name} target extends beyond the screen. Reduce the horizontal/vertical target span or target visual angle.`;
         }
       }
       return "";
@@ -1782,6 +1807,14 @@
         ? [...initialSettings.directions]
         : [...ALL_DIRECTIONS];
       let currentStimType = initialSettings.stimulusType || "white_dot";
+      const changeField = form.querySelector("#number-change-field");
+      const changeInput = form.elements.namedItem("changeMs");
+      const updateChangeInterval = () => {
+        const enabled = isVor || currentStimType === "numbers_dot";
+        changeField.hidden = !enabled;
+        changeInput.disabled = !enabled;
+      };
+      updateChangeInterval();
 
       // 1. Stimulus type toggle
       if (!isVor) {
@@ -1797,6 +1830,7 @@
             currentStimType = btn.dataset.stimType;
             const hiddenInput = form.querySelector("#module-stimulus-type");
             if (hiddenInput) hiddenInput.value = currentStimType;
+            updateChangeInterval();
             updateModulePreview(form, moduleKey, { stimulusType: currentStimType, directions: selectedDirs });
           });
         });
@@ -1907,8 +1941,8 @@
 
     function updateModulePreview(form, moduleKey, extra = {}) {
       const output = form.querySelector("#target-preview");
-      if (moduleKey === "saccade" && AppState.calibration) {
-        const limits = saccadeSpanLimits({ ballArcmin: Number(form.elements.namedItem("ballArcmin").value) }, AppState.calibration);
+      if (moduleKey !== "vor" && AppState.calibration) {
+        const limits = targetSpanLimits({ ballArcmin: Number(form.elements.namedItem("ballArcmin").value) }, AppState.calibration);
         for (const axis of ["horizontal", "vertical"]) {
           const input = form.querySelector(`#${axis}-span-arcmin`);
           const max = limits[`${axis}Arcmin`];
@@ -1931,8 +1965,8 @@
       const stimType = settings.values.stimulusType || extra.stimulusType || "white_dot";
       const dirs = settings.values.directions || extra.directions || ALL_DIRECTIONS;
       let spanText = "";
-      if (moduleKey === "saccade") {
-        const layout = saccadeTargetLayout(settings.values, AppState.calibration);
+      if (moduleKey !== "vor") {
+        const layout = targetSpanLayout(moduleKey, settings.values, AppState.calibration);
         spanText = `<br>Target span: ${formatNumber(layout.horizontalArcmin, 1)}' horizontal × ${formatNumber(layout.verticalArcmin, 1)}' vertical`;
       }
 
@@ -1957,6 +1991,7 @@
         } else {
           modeText = `Random (${dirCountText}) · ${stimLabel}`;
         }
+        if (stimType === "numbers_dot") modeText += ` · ${settings.values.changeMs} ms / change`;
       }
 
       output.innerHTML = `
@@ -2423,10 +2458,10 @@
 
     function edgePoint(direction, geometry) {
       const { viewportWidth: width, viewportHeight: height, targetWidth, targetHeight } = geometry;
-      const left = targetWidth / 2;
-      const right = width - targetWidth / 2;
-      const top = targetHeight / 2;
-      const bottom = height - targetHeight / 2;
+      const left = geometry.horizontalSpanPx == null ? targetWidth / 2 : (width - geometry.horizontalSpanPx) / 2;
+      const right = geometry.horizontalSpanPx == null ? width - targetWidth / 2 : (width + geometry.horizontalSpanPx) / 2;
+      const top = geometry.verticalSpanPx == null ? targetHeight / 2 : (height - geometry.verticalSpanPx) / 2;
+      const bottom = geometry.verticalSpanPx == null ? height - targetHeight / 2 : (height + geometry.verticalSpanPx) / 2;
       const centerX = width / 2;
       const centerY = height / 2;
       const points = {
@@ -3109,9 +3144,9 @@
         `# Viewing Distance: ${round(calibration.viewingDistanceCm, 2)} cm`,
         `# Stimulus Type: ${(STIMULUS_TYPES[stimulusType] && STIMULUS_TYPES[stimulusType].name) || stimulusType}`,
         `# Stimulus Size: ${round(ballArcmin, 2)} arcmin (${(ballArcmin / 60).toFixed(2)} deg)`,
-        ...(moduleKey === "saccade" ? [
-          `# Horizontal Target Span: ${round(saccadeTargetLayout(settings, calibration, screenPixels).horizontalArcmin, 2)} arcmin (left-to-right target centers)`,
-          `# Vertical Target Span: ${round(saccadeTargetLayout(settings, calibration, screenPixels).verticalArcmin, 2)} arcmin (top-to-bottom target centers)`
+        ...(moduleKey !== "vor" && (moduleKey === "saccade" || settings.horizontalSpanArcmin || settings.verticalSpanArcmin) ? [
+          `# Horizontal Target Span: ${round(targetSpanLayout(moduleKey, settings, calibration, screenPixels).horizontalArcmin, 2)} arcmin (left-to-right target centers)`,
+          `# Vertical Target Span: ${round(targetSpanLayout(moduleKey, settings, calibration, screenPixels).verticalArcmin, 2)} arcmin (top-to-bottom target centers)`
         ] : []),
         `# Movement Speed: ${settings.speedArcminSec ? settings.speedArcminSec + " arcmin/s" : "N/A"}`,
         `# Hit Distance Threshold: ${thresholdDeg} deg (${thresholdArcmin} arcmin / approx. ${thresholdPx} px screen radius)`,
@@ -3323,16 +3358,16 @@
         };
         const initialViewport = readStageViewport();
         const targetSize = stimulusPixels(ballArcmin, calibration, screenPixels);
-        const saccadeLayout = moduleKey === "saccade" ? saccadeTargetLayout(settings, calibration, screenPixels) : null;
+        const spanLayout = moduleKey !== "vor" ? targetSpanLayout(moduleKey, settings, calibration, screenPixels) : null;
         const geometry = {
           viewportWidth: initialViewport.width,
           viewportHeight: initialViewport.height,
           targetWidth: targetSize.width,
           targetHeight: targetSize.height
         };
-        if (saccadeLayout) {
-          geometry.horizontalSpanPx = saccadeLayout.width;
-          geometry.verticalSpanPx = saccadeLayout.height;
+        if (spanLayout) {
+          if (moduleKey === "saccade" || Number(settings.horizontalSpanArcmin) > 0) geometry.horizontalSpanPx = spanLayout.width;
+          if (moduleKey === "saccade" || Number(settings.verticalSpanArcmin) > 0) geometry.verticalSpanPx = spanLayout.height;
         }
         const center = { x: geometry.viewportWidth / 2, y: geometry.viewportHeight / 2 };
         const currentCenter = { x: center.x, y: center.y };
@@ -3806,7 +3841,7 @@
           const nextKey = picker.next(currentGridKey, settings.mode === RANDOM);
           currentGridKey = nextKey;
           const point = gridPoint(nextKey, geometry);
-          showActiveStimulus(now, true);
+          showActiveStimulus(now);
           setPosition(point);
           phase = "dwell";
           phaseStart = now;
