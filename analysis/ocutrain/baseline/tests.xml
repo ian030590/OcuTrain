@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+	<testcase name="a browser page does not acquire native privileges" time="0.002506" classname="test" file="P:\3_Projects\OcuTrain\tests\desktop.test.cjs"/>
+	<testcase name="Tauri subscribes once before status and carries the original SDK clock" time="0.002851" classname="test" file="P:\3_Projects\OcuTrain\tests\desktop.test.cjs"/>
+	<testcase name="document saving awaits native completion and propagates a write failure" time="0.003878" classname="test" file="P:\3_Projects\OcuTrain\tests\desktop.test.cjs"/>
+	<testcase name="training waits for native fullscreen and exit restores the window" time="0.009595" classname="test" file="P:\3_Projects\OcuTrain\tests\desktop.test.cjs"/>
+	<testcase name="native status reflects a physical connection and a missing device" time="0.025521" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="Tauri events reach the active recorder and retain device timestamps" time="0.003437" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="native save completion survives menu rendering and write failures remain retryable" time="0.020401" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="missing or non-finite coordinates cannot become valid gaze at zero" time="0.004097" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="gaze statistics update even outside an assessment" time="0.004752" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="a stream failure updates status and interrupts a trial listener" time="0.003830" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="the injected bridge client binds its events once" time="0.004781" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="every module reads and retains the entered hit threshold through saving and scoring" time="0.023015" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="threshold controls share a calibrated range and reject invalid settings" time="0.032148" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="saccade span sliders use calibrated screen dimensions, distance and target clearance" time="0.005812" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="saccade spans change displayed coordinates using physical calibration, independently of scoring" time="0.024108" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="saccade bounds include target radius and reject spans that no longer fit after recalibration" time="0.002552" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="tobii pursuit excludes the cross and keeps a visible target through the return to center" time="0.004204" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="tobii fixation scores only edge hold and clips sample intervals at its onset" time="0.003540" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="tobii TFF uses source time, detects an off-target fixation and ignores the accuracy grace window" time="0.005326" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="webgazer pursuit excludes the cross and keeps a visible target through the return to center" time="0.003657" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="webgazer fixation scores only edge hold and clips sample intervals at its onset" time="0.002846" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="webgazer TFF uses source time, detects an off-target fixation and ignores the accuracy grace window" time="0.003015" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="TFF does not count the fixation carried over from the previous target" time="0.002151" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="TFF requires 100 ms of uninterrupted valid fixation and does not interpolate blinks or gaps" time="0.004932" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="TFF is independent of sample rate and resets detection for every target" time="0.007525" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="TFF retains a separate N/A outcome for targets without valid samples" time="0.001935" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="native samples drive scoring and CSV export, with blinks excluded" time="0.002755" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="no samples, all invalid samples and untracked sessions report N/A" time="0.006647" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="zero-data validation blocks proceeding and does not invent an error threshold" time="0.003136" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="native clock synchronization measures clock origins using the lowest round trip" time="0.005736" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="screen gaze is translated through window borders and DPI scaling" time="0.001987" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="effective 1.5 degree threshold is a radius and converts each physical axis separately" time="0.002746" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="delayed gaze is compared to the frame at acquisition, not the latest target" time="0.004574" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="delayed WebGazer gaze uses the absolute inference timestamp instead of callback time or trial-relative t" time="0.006349" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer saccade grace and pre-trial rejection use inference time" time="0.002498" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="missing or invalid WebGazer source times fall back explicitly without inventing a measured delay" time="0.008858" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="saccade grace uses acquisition time even if the message arrives later" time="0.004440" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="pre-trial, duplicate and reversed timestamps do not add scored time" time="0.003344" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="missing samples are excluded instead of counting an entire gap as fixation" time="0.002753" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="a camera validation threshold cannot carry over to a Tobii assessment" time="0.002618" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="Tobii includes one degree of tolerance while retaining raw measured errors" time="0.002768" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="validation uncertainty is not added a second time" time="0.002523" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="a precise validation cannot remove the Tobii measurement allowance" time="0.002799" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="the GUI threshold remains editable and changes the effective Tobii threshold" time="0.002705" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer includes two degrees of tolerance: default setting" time="0.002917" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer includes two degrees of tolerance: precise validation" time="0.002607" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer includes two degrees of tolerance: larger validation without double-counting" time="0.002504" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer includes two degrees of tolerance: edited GUI setting" time="0.002460" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer includes two degrees of tolerance: validation from another tracker" time="0.002677" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="WebGazer validation displays the same effective threshold used for scoring" time="0.009143" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="untracked sessions do not receive a tracker measurement allowance" time="0.002353" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="camera startup displays feedback before initialization finishes and keeps the ready gate" time="0.018803" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="camera initialization failures still offer the untracked fallback" time="0.002717" classname="test" file="P:\3_Projects\OcuTrain\tests\tobii-bridge.test.cjs"/>
+	<testcase name="jsPsych uses one WebGazer prediction stream through calibration, validation and training" time="0.004852" classname="test" file="P:\3_Projects\OcuTrain\tests\webgazer-runtime.test.cjs"/>
+	<testcase name="bundled facemesh model has every declared weight byte available offline" time="0.020691" classname="test" file="P:\3_Projects\OcuTrain\tests\webgazer-runtime.test.cjs"/>
+	<testcase name="bundled blazeface model has every declared weight byte available offline" time="0.018122" classname="test" file="P:\3_Projects\OcuTrain\tests\webgazer-runtime.test.cjs"/>
+	<testcase name="pausing and resuming cannot overlap native face inference or deliver late samples" time="0.004227" classname="test" file="P:\3_Projects\OcuTrain\tests\webgazer-runtime.test.cjs"/>
+	<testcase name="ending WebGazer releases every camera track and removes its nested preview safely" time="0.003311" classname="test" file="P:\3_Projects\OcuTrain\tests\webgazer-runtime.test.cjs"/>
+	<!-- tests 58 -->
+	<!-- suites 0 -->
+	<!-- pass 58 -->
+	<!-- fail 0 -->
+	<!-- cancelled 0 -->
+	<!-- skipped 0 -->
+	<!-- todo 0 -->
+	<!-- duration_ms 808.6689 -->
+</testsuites>

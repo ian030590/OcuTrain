@@ -1,0 +1,181 @@
+{
+  "system": "ocutrain",
+  "legacy": {
+    "label": "Working tree before anti-slop changes",
+    "command": "node analysis/ocutrain/equivalence/run.cjs .tools/anti-slop-baseline analysis/ocutrain/equivalence/baseline"
+  },
+  "new": {
+    "label": "Current working tree",
+    "command": "node analysis/ocutrain/equivalence/run.cjs . analysis/ocutrain/equivalence/current"
+  },
+  "cases": [
+    {
+      "id": "fresh-01-csv",
+      "input": "fresh-01",
+      "title": "fresh-01",
+      "legacy": "baseline/fresh-01.csv",
+      "new": "current/fresh-01.csv"
+    },
+    {
+      "id": "fresh-01-json",
+      "input": "fresh-01",
+      "title": "fresh-01",
+      "legacy": "baseline/fresh-01.json",
+      "new": "current/fresh-01.json"
+    },
+    {
+      "id": "fresh-02-csv",
+      "input": "fresh-02",
+      "title": "fresh-02",
+      "legacy": "baseline/fresh-02.csv",
+      "new": "current/fresh-02.csv"
+    },
+    {
+      "id": "fresh-02-json",
+      "input": "fresh-02",
+      "title": "fresh-02",
+      "legacy": "baseline/fresh-02.json",
+      "new": "current/fresh-02.json"
+    },
+    {
+      "id": "fresh-03-csv",
+      "input": "fresh-03",
+      "title": "fresh-03",
+      "legacy": "baseline/fresh-03.csv",
+      "new": "current/fresh-03.csv"
+    },
+    {
+      "id": "fresh-03-json",
+      "input": "fresh-03",
+      "title": "fresh-03",
+      "legacy": "baseline/fresh-03.json",
+      "new": "current/fresh-03.json"
+    },
+    {
+      "id": "fresh-04-csv",
+      "input": "fresh-04",
+      "title": "fresh-04",
+      "legacy": "baseline/fresh-04.csv",
+      "new": "current/fresh-04.csv"
+    },
+    {
+      "id": "fresh-04-json",
+      "input": "fresh-04",
+      "title": "fresh-04",
+      "legacy": "baseline/fresh-04.json",
+      "new": "current/fresh-04.json"
+    },
+    {
+      "id": "fresh-05-csv",
+      "input": "fresh-05",
+      "title": "fresh-05",
+      "legacy": "baseline/fresh-05.csv",
+      "new": "current/fresh-05.csv"
+    },
+    {
+      "id": "fresh-05-json",
+      "input": "fresh-05",
+      "title": "fresh-05",
+      "legacy": "baseline/fresh-05.json",
+      "new": "current/fresh-05.json"
+    },
+    {
+      "id": "fresh-06-csv",
+      "input": "fresh-06",
+      "title": "fresh-06",
+      "legacy": "baseline/fresh-06.csv",
+      "new": "current/fresh-06.csv"
+    },
+    {
+      "id": "fresh-06-json",
+      "input": "fresh-06",
+      "title": "fresh-06",
+      "legacy": "baseline/fresh-06.json",
+      "new": "current/fresh-06.json"
+    },
+    {
+      "id": "fresh-07-csv",
+      "input": "fresh-07",
+      "title": "fresh-07",
+      "legacy": "baseline/fresh-07.csv",
+      "new": "current/fresh-07.csv"
+    },
+    {
+      "id": "fresh-07-json",
+      "input": "fresh-07",
+      "title": "fresh-07",
+      "legacy": "baseline/fresh-07.json",
+      "new": "current/fresh-07.json"
+    },
+    {
+      "id": "fresh-08-csv",
+      "input": "fresh-08",
+      "title": "fresh-08",
+      "legacy": "baseline/fresh-08.csv",
+      "new": "current/fresh-08.csv"
+    },
+    {
+      "id": "fresh-08-json",
+      "input": "fresh-08",
+      "title": "fresh-08",
+      "legacy": "baseline/fresh-08.json",
+      "new": "current/fresh-08.json"
+    },
+    {
+      "id": "fresh-09-csv",
+      "input": "fresh-09",
+      "title": "fresh-09",
+      "legacy": "baseline/fresh-09.csv",
+      "new": "current/fresh-09.csv"
+    },
+    {
+      "id": "fresh-09-json",
+      "input": "fresh-09",
+      "title": "fresh-09",
+      "legacy": "baseline/fresh-09.json",
+      "new": "current/fresh-09.json"
+    },
+    {
+      "id": "fresh-10-csv",
+      "input": "fresh-10",
+      "title": "fresh-10",
+      "legacy": "baseline/fresh-10.csv",
+      "new": "current/fresh-10.csv"
+    },
+    {
+      "id": "fresh-10-json",
+      "input": "fresh-10",
+      "title": "fresh-10",
+      "legacy": "baseline/fresh-10.json",
+      "new": "current/fresh-10.json"
+    },
+    {
+      "id": "fresh-11-csv",
+      "input": "fresh-11",
+      "title": "fresh-11",
+      "legacy": "baseline/fresh-11.csv",
+      "new": "current/fresh-11.csv"
+    },
+    {
+      "id": "fresh-11-json",
+      "input": "fresh-11",
+      "title": "fresh-11",
+      "legacy": "baseline/fresh-11.json",
+      "new": "current/fresh-11.json"
+    },
+    {
+      "id": "fresh-12-csv",
+      "input": "fresh-12",
+      "title": "fresh-12",
+      "legacy": "baseline/fresh-12.csv",
+      "new": "current/fresh-12.csv"
+    },
+    {
+      "id": "fresh-12-json",
+      "input": "fresh-12",
+      "title": "fresh-12",
+      "legacy": "baseline/fresh-12.json",
+      "new": "current/fresh-12.json"
+    }
+  ]
+}

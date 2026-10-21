@@ -1,0 +1,38 @@
+# -- Oculomotor Rehabilitation Training System Test Report --
+# Subject ID: SUBJ_JPF0O6
+# Session ID: 1792555200000-8x9fzg1
+# Test Date: 2026-10-21
+# Test Time: 12:00:00
+# Training Module: Vestibulo-Ocular Reflex (VOR)
+# Test Mode: Predictable
+# Display Physical Width: 53 cm
+# Display Physical Height: 30 cm
+# Screen Resolution: 1920 x 1080 px
+# Viewing Distance: 60 cm
+# Stimulus Type: Numbers dot
+# Stimulus Size: 60 arcmin (1.00 deg)
+# Movement Speed: N/A
+# Hit Distance Threshold: 1.5 deg (90 arcmin / approx. 56.9 px screen radius)
+# GUI Distance Threshold: 1.5 deg
+# Untracked Assumed Measurement-Error Allowance: 0 deg
+# Validation Threshold (2x Mean Error): N/A deg
+# Total Test Duration: 10.00 s
+# Valid Gaze Duration (Denominator): 0.00 s
+# Blink Duration (Excluded): 0.00 s
+# On-Target Duration (Numerator): 0.00 s
+# Gaze Accuracy Rate: N/A (no valid gaze)
+# Accuracy Definition: On-target duration / valid gaze duration (not hardware calibration accuracy)
+# Accuracy Scoring Phases: All valid tracking time
+# Accuracy Sample Weight: accuracy_delta_t_ms is the valid interval overlapping scoring phases; is_within_threshold reports raw spatial proximity even during excluded phases
+# Sample Timing Reference: N/A (untracked)
+# Clock Sync Estimated Uncertainty (half RTT): N/A (browser receipt time)
+# Excluded Missing-Sample Duration: 0.000 s
+# Rejected Duplicate/Out-of-Order Timestamps: 0
+# Enabled Directions: Right
+# Completed Targets: 0
+# Test Termination Reason: duration_complete
+# Eye Tracker Hardware: None (Untracked)
+# Sampling Frequency: N/A
+# Total Gaze Samples: 0
+# ------------------------------------------------------------
+sample_index,trial_time_ms,device_timestamp_us,delta_t_ms,instant_hz,gaze_valid,gaze_x_px,gaze_y_px,stimulus_x_px,stimulus_y_px,distance_error_px,distance_error_deg,is_within_threshold,phase,direction,browser_received_trial_time_ms,transport_delay_ms,stimulus_frame_time_ms,clock_mapping,target_number,accuracy_eligible,accuracy_delta_t_ms,gaze_velocity_deg_s,is_fixation,tff_ms

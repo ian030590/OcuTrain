@@ -278,6 +278,49 @@ test("threshold controls share a calibrated range and reject invalid settings", 
   }
 });
 
+test("saccade span sliders use calibrated screen dimensions, distance and target clearance", () => {
+  const app = loadApp();
+  const render = (calibrationValues = {}, settings = {}) => {
+    const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30,
+      viewingDistanceCm: 60, ...calibrationValues });
+    app.api.AppState.calibration = calibration;
+    const values = { ...app.api.AppState.moduleSettings.saccade, horizontalSpanArcmin: 99999,
+      verticalSpanArcmin: 99999, ...settings };
+    const html = app.api.moduleFormFields("saccade", values);
+    const spans = {};
+    for (const axis of ["horizontal", "vertical"]) {
+      const input = html.match(new RegExp(`<input[^>]*id="${axis}-span-arcmin"[^>]*>`))[0];
+      assert.match(input, /type="range"/);
+      assert.match(input, new RegExp(`name="${axis}SpanArcmin"`));
+      assert.match(input, /min="0.1"/);
+      assert.match(input, /step="0.1"/);
+      const max = Number(input.match(/max="([^"]+)"/)[1]);
+      const value = Number(input.match(/value="([^"]+)"/)[1]);
+      assert.equal(value, max, "previous spans exceeding the new range are clamped");
+      spans[`${axis}SpanArcmin`] = value;
+      const sizeCm = axis === "horizontal" ? calibration.screenWidthCm : calibration.screenHeightCm;
+      const distance = calibration.viewingDistanceCm;
+      const physicalSize = arcmin => 2 * distance * Math.tan(arcmin * Math.PI / 21600);
+      const diameter = physicalSize(values.ballArcmin);
+      assert.ok(physicalSize(max) + diameter <= sizeCm);
+      assert.ok(physicalSize(max + 0.1) + diameter > sizeCm, "maximum uses all available space to 0.1 arcmin");
+    }
+    assert.equal(app.api.targetFitError("saccade", { ...values, ...spans }, calibration), "");
+    return spans;
+  };
+  const initial = render();
+  const wider = render({ screenWidthCm: 70 });
+  assert.ok(wider.horizontalSpanArcmin > initial.horizontalSpanArcmin);
+  assert.equal(wider.verticalSpanArcmin, initial.verticalSpanArcmin);
+  const taller = render({ screenHeightCm: 40 });
+  assert.equal(taller.horizontalSpanArcmin, initial.horizontalSpanArcmin);
+  assert.ok(taller.verticalSpanArcmin > initial.verticalSpanArcmin);
+  for (const smaller of [render({ viewingDistanceCm: 90 }), render({}, { ballArcmin: 600 })]) {
+    assert.ok(smaller.horizontalSpanArcmin < initial.horizontalSpanArcmin);
+    assert.ok(smaller.verticalSpanArcmin < initial.verticalSpanArcmin);
+  }
+});
+
 test("saccade spans change displayed coordinates using physical calibration, independently of scoring", () => {
   const firstTarget = (settings = {}, calibrationValues = {}) => {
     const app = loadApp();

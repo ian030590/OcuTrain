@@ -1,0 +1,21 @@
+equivalence cases executed: 54
+same 38 | differs 16 | differs but approved 0 | missing 0 | of 54 cases
+self-check: passed - each legacy output was compared with a copy changed by one byte and reported as different
+  vor-tobii-csv  differs: The outputs first differ at line 15, byte 502.
+  vor-tobii-json  differs: The outputs first differ at line 127, byte 2934.
+  pursuit-tobii-csv  differs: The outputs first differ at line 15, byte 504.
+  pursuit-tobii-json  differs: The outputs first differ at line 127, byte 2991.
+  saccade-tobii-csv  differs: The outputs first differ at line 17, byte 624.
+  saccade-tobii-json  differs: The outputs first differ at line 126, byte 2986.
+  fixation-tobii-csv  differs: The outputs first differ at line 15, byte 499.
+  fixation-tobii-json  differs: The outputs first differ at line 129, byte 3028.
+  fresh-03-csv  differs: The outputs first differ at line 17, byte 637.
+  fresh-03-json  differs: The outputs first differ at line 177, byte 4364.
+  fresh-06-csv  differs: The outputs first differ at line 15, byte 508.
+  fresh-06-json  differs: The outputs first differ at line 140, byte 3322.
+  fresh-09-csv  differs: The outputs first differ at line 15, byte 514.
+  fresh-09-json  differs: The outputs first differ at line 141, byte 3287.
+  fresh-12-csv  differs: The outputs first differ at line 15, byte 504.
+  fresh-12-json  differs: The outputs first differ at line 142, byte 3359.
+NOT PROVEN: 16 case(s) differ
+wrote analysis/ocutrain/equivalence/CANARY_EQUIVALENCE.json

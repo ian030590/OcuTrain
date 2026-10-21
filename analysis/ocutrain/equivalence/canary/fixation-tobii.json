@@ -1,0 +1,198 @@
+{
+  "input": {
+    "id": "fixation-tobii",
+    "module": "fixation",
+    "source": "tobii"
+  },
+  "calibration": {
+    "screenWidthCm": 53,
+    "screenHeightCm": 30,
+    "viewingDistanceCm": 60,
+    "screenWidthPx": 1920,
+    "screenHeightPx": 1080,
+    "devicePixelRatio": 1,
+    "horizontalArcmin": 2859.53393735578,
+    "verticalArcmin": 1684.3492161511774,
+    "aspectMismatchPercent": 0.6249999999999978,
+    "createdAt": "2026-10-21T04:00:00.000Z"
+  },
+  "parsed": {
+    "values": {
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "holdSec": 2,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 90,
+      "ballArcsec": 3600,
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "directions": [
+        "rightMiddle"
+      ]
+    },
+    "errors": []
+  },
+  "restored": {
+    "vor": {
+      "ballArcmin": 60,
+      "changeMs": 500,
+      "totalSec": 30
+    },
+    "pursuit": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "saccade": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "dwellMs": 500,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "fixation": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "holdSec": 2,
+      "totalSec": 10,
+      "directions": [
+        "rightMiddle"
+      ],
+      "distanceThresholdArcmin": 90,
+      "ballArcsec": 3600
+    }
+  },
+  "fitError": "",
+  "session": {
+    "session_id": "1792555200000-8x9fzg1",
+    "module": "fixation",
+    "mode": "predictable",
+    "settings": {
+      "ballArcmin": 60,
+      "changeMs": 500,
+      "totalSec": 10,
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "speedArcminSec": 300,
+      "holdSec": 2,
+      "directions": [
+        "rightMiddle"
+      ],
+      "distanceThresholdArcmin": 90,
+      "dwellMs": 500,
+      "horizontalSpanArcmin": 300,
+      "verticalSpanArcmin": 300
+    },
+    "calibration": {
+      "screenWidthCm": 53,
+      "screenHeightCm": 30,
+      "viewingDistanceCm": 60,
+      "screenWidthPx": 1920,
+      "screenHeightPx": 1080,
+      "devicePixelRatio": 1,
+      "horizontalArcmin": 2859.53393735578,
+      "verticalArcmin": 1684.3492161511774,
+      "aspectMismatchPercent": 0.6249999999999978,
+      "createdAt": "2026-10-21T04:00:00.000Z"
+    },
+    "end_reason": "duration_complete",
+    "completed_targets": 0,
+    "actual_duration_ms": 10000,
+    "accuracy_rate": null,
+    "in_threshold_sec": 0,
+    "valid_sec": 0,
+    "blink_sec": 0.05,
+    "threshold_deg": 2.75,
+    "threshold_setting_deg": 1.5,
+    "tracker_error_allowance_deg": 1.25,
+    "validation_threshold_deg": null,
+    "threshold_arcmin": 165,
+    "planned_duration_ms": 10000,
+    "fullscreen_entered": true,
+    "eye_tracking": {
+      "source": "tobii",
+      "enabled": true,
+      "calibrated": false,
+      "calibrated_at": null,
+      "library": "Tauri 2 Tobii Bridge",
+      "provider": null,
+      "provider_mode": null,
+      "sampling_interval_ms": 0,
+      "clock_sync_estimated_uncertainty_ms": null,
+      "hardware_calibration_confirmed": false
+    },
+    "gaze_path": "[{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2000000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1000,\"sample_performance_ms\":2000,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.5,\"raw_y\":0.5,\"x\":960,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2050000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1050,\"sample_performance_ms\":2050,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.61,\"raw_y\":0.5,\"x\":1171.2,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2100000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1100,\"sample_performance_ms\":2100,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.61,\"raw_y\":0.5,\"x\":1171.2,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2150000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1150,\"sample_performance_ms\":2150,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.61,\"raw_y\":0.5,\"x\":1171.2,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2250000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1250,\"sample_performance_ms\":2250,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.61,\"raw_y\":0.5,\"x\":1171.2,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2300000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1300,\"sample_performance_ms\":2300,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.61,\"raw_y\":0.5,\"x\":1171.2,\"y\":540,\"valid\":false,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2400000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1400,\"sample_performance_ms\":2400,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.5,\"raw_y\":0.5,\"x\":960,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2450000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1450,\"sample_performance_ms\":2450,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.5,\"raw_y\":0.5,\"x\":960,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"},{\"sequence\":null,\"bridge_received_unix_ms\":null,\"bridge_monotonic_ms\":null,\"device_timestamp_us\":2500000,\"browser_received_unix_ms\":1792555200000,\"browser_trial_time_ms\":1500,\"sample_performance_ms\":2500,\"transport_delay_ms\":0,\"clock_mapping\":\"tobii_system_clock_to_browser\",\"raw_x\":0.5,\"raw_y\":0.5,\"x\":960,\"y\":540,\"valid\":true,\"coordinate_space\":\"screen_normalized\",\"source_width\":1920,\"source_height\":1080,\"css_mapping\":\"screen_to_css_viewport\"}]",
+    "gaze_sample_count": 9,
+    "gaze_downsampled_count": 0,
+    "gaze_overflow_count": 0,
+    "gaze_rejected_timestamp_count": 0,
+    "gaze_missing_duration_ms": 0,
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "stimulus": {
+      "arcsec": 3600,
+      "arcmin": 60,
+      "type": "white_dot",
+      "selected_directions": [
+        "rightMiddle"
+      ],
+      "width_px": 37.9372,
+      "height_px": 37.7001,
+      "diameter_cm": 1.047224
+    },
+    "timing": {
+      "clock": "performance.now",
+      "animation": "requestAnimationFrame",
+      "frame_count": 10,
+      "median_frame_gap_ms": 50,
+      "max_frame_gap_ms": 1000,
+      "estimated_refresh_hz": 20
+    },
+    "predictable_start_index": 0,
+    "event_log": [
+      {
+        "event": "cross_onset",
+        "actual_ms": 0,
+        "target_number": 1,
+        "direction": "rightMiddle",
+        "direction_label": "Right"
+      },
+      {
+        "event": "movement_onset",
+        "actual_ms": 1000,
+        "target_number": 1,
+        "direction": "rightMiddle",
+        "duration_ms": 4961.125
+      }
+    ],
+    "interaction_log": [],
+    "ended_at": "2026-10-21T04:00:00.000Z"
+  },
+  "filename": "SUBJ_JPF0O6_20261021_120000_FIXATION_Tobii_gaze_record.csv"
+}

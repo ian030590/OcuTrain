@@ -1,0 +1,223 @@
+{
+  "input": {
+    "id": "fresh-01",
+    "module": "vor",
+    "source": "webgazer",
+    "calibration": {
+      "screenWidthCm": 43.2,
+      "screenHeightCm": 24.3,
+      "viewingDistanceCm": 47
+    },
+    "settings": {
+      "ballArcmin": 1,
+      "distanceThresholdArcmin": 10,
+      "horizontalSpanArcmin": 217,
+      "verticalSpanArcmin": 163,
+      "speedArcminSec": 420,
+      "dwellMs": 320
+    }
+  },
+  "calibration": {
+    "screenWidthCm": 43.2,
+    "screenHeightCm": 24.3,
+    "viewingDistanceCm": 47,
+    "screenWidthPx": 1920,
+    "screenHeightPx": 1080,
+    "devicePixelRatio": 1,
+    "horizontalArcmin": 2961.876461792732,
+    "verticalArcmin": 1739.3107717025791,
+    "aspectMismatchPercent": 2.220446049250313e-14,
+    "createdAt": "2026-10-21T04:00:00.000Z"
+  },
+  "parsed": {
+    "values": {
+      "ballArcmin": 1,
+      "changeMs": 500,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 10,
+      "ballArcsec": 60
+    },
+    "errors": []
+  },
+  "restored": {
+    "vor": {
+      "ballArcmin": 1,
+      "changeMs": 500,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 10,
+      "ballArcsec": 60
+    },
+    "pursuit": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "saccade": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "dwellMs": 500,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "fixation": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "holdSec": 2,
+      "totalSec": 60,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    }
+  },
+  "fitError": "",
+  "session": {
+    "session_id": "1792555200000-8x9fzg1",
+    "module": "vor",
+    "mode": "continuous",
+    "settings": {
+      "ballArcmin": 1,
+      "changeMs": 500,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 10,
+      "mode": "predictable",
+      "dwellMs": 320,
+      "horizontalSpanArcmin": 217,
+      "verticalSpanArcmin": 163,
+      "directions": [
+        "rightMiddle"
+      ],
+      "speedArcminSec": 420
+    },
+    "calibration": {
+      "screenWidthCm": 43.2,
+      "screenHeightCm": 24.3,
+      "viewingDistanceCm": 47,
+      "screenWidthPx": 1920,
+      "screenHeightPx": 1080,
+      "devicePixelRatio": 1,
+      "horizontalArcmin": 2961.876461792732,
+      "verticalArcmin": 1739.3107717025791,
+      "aspectMismatchPercent": 2.220446049250313e-14,
+      "createdAt": "2026-10-21T04:00:00.000Z"
+    },
+    "end_reason": "duration_complete",
+    "completed_targets": 0,
+    "actual_duration_ms": 10000,
+    "accuracy_rate": 47.95,
+    "in_threshold_sec": 0.23,
+    "valid_sec": 0.48,
+    "blink_sec": 0.05,
+    "threshold_deg": 2.17,
+    "threshold_setting_deg": 0.17,
+    "tracker_error_allowance_deg": 2,
+    "validation_threshold_deg": null,
+    "threshold_arcmin": 130.2,
+    "planned_duration_ms": 10000,
+    "fullscreen_entered": true,
+    "eye_tracking": {
+      "source": "webgazer",
+      "enabled": true,
+      "calibrated": false,
+      "calibrated_at": null,
+      "library": "WebGazer via jsPsych extension-webgazer",
+      "provider": "WebGazer",
+      "provider_mode": "webcam",
+      "sampling_interval_ms": 34,
+      "clock_sync_estimated_uncertainty_ms": null,
+      "hardware_calibration_confirmed": null
+    },
+    "gaze_path": "[{\"valid\":true,\"x\":960,\"y\":540,\"device_timestamp_us\":2000000,\"sample_performance_ms\":2000,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":1171.2,\"y\":540,\"device_timestamp_us\":2050000,\"sample_performance_ms\":2050,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":1171.2,\"y\":540,\"device_timestamp_us\":2100000,\"sample_performance_ms\":2100,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":1171.2,\"y\":540,\"device_timestamp_us\":2150000,\"sample_performance_ms\":2150,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":1171.2,\"y\":540,\"device_timestamp_us\":2250000,\"sample_performance_ms\":2250,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":false,\"x\":null,\"y\":null,\"device_timestamp_us\":2300000,\"sample_performance_ms\":2300,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":960,\"y\":540,\"device_timestamp_us\":2400000,\"sample_performance_ms\":2400,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":960,\"y\":540,\"device_timestamp_us\":2450000,\"sample_performance_ms\":2450,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"},{\"valid\":true,\"x\":960,\"y\":540,\"device_timestamp_us\":2500000,\"sample_performance_ms\":2500,\"transport_delay_ms\":0,\"clock_mapping\":\"webgazer_inference_start_to_browser_performance\"}]",
+    "gaze_sample_count": 9,
+    "gaze_downsampled_count": 0,
+    "gaze_overflow_count": 0,
+    "gaze_rejected_timestamp_count": 0,
+    "gaze_missing_duration_ms": 0,
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "stimulus": {
+      "arcsec": 60,
+      "arcmin": 1,
+      "type": "numbers_dot",
+      "selected_directions": [
+        "rightMiddle"
+      ],
+      "width_px": 0.6076,
+      "height_px": 0.6076,
+      "diameter_cm": 0.013672
+    },
+    "timing": {
+      "clock": "performance.now",
+      "animation": "requestAnimationFrame",
+      "frame_count": 10,
+      "median_frame_gap_ms": 50,
+      "max_frame_gap_ms": 1000,
+      "estimated_refresh_hz": 20
+    },
+    "predictable_start_index": null,
+    "event_log": [
+      {
+        "event": "vor_change",
+        "actual_ms": 0,
+        "index": 0,
+        "planned_ms": 0,
+        "color": "#f4f7fb",
+        "digit": 1,
+        "skipped_intervals": 0
+      },
+      {
+        "event": "vor_change",
+        "actual_ms": 1000,
+        "index": 2,
+        "planned_ms": 1000,
+        "color": "#ff9f5b",
+        "digit": 8,
+        "skipped_intervals": 1
+      },
+      {
+        "event": "vor_change",
+        "actual_ms": 1500,
+        "index": 3,
+        "planned_ms": 1500,
+        "color": "#ffd166",
+        "digit": 7,
+        "skipped_intervals": 0
+      }
+    ],
+    "interaction_log": [],
+    "ended_at": "2026-10-21T04:00:00.000Z"
+  },
+  "filename": "SUBJ_JPF0O6_20261021_120000_VOR_WebGazer_gaze_record.csv"
+}

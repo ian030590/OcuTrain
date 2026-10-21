@@ -1,0 +1,209 @@
+{
+  "input": {
+    "id": "vor-off",
+    "module": "vor",
+    "source": "off"
+  },
+  "calibration": {
+    "screenWidthCm": 53,
+    "screenHeightCm": 30,
+    "viewingDistanceCm": 60,
+    "screenWidthPx": 1920,
+    "screenHeightPx": 1080,
+    "devicePixelRatio": 1,
+    "horizontalArcmin": 2859.53393735578,
+    "verticalArcmin": 1684.3492161511774,
+    "aspectMismatchPercent": 0.6249999999999978,
+    "createdAt": "2026-10-21T04:00:00.000Z"
+  },
+  "parsed": {
+    "values": {
+      "ballArcmin": 60,
+      "changeMs": 500,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 90,
+      "ballArcsec": 3600
+    },
+    "errors": []
+  },
+  "restored": {
+    "vor": {
+      "ballArcmin": 60,
+      "changeMs": 500,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 90,
+      "ballArcsec": 3600
+    },
+    "pursuit": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "saccade": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "dwellMs": 500,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "fixation": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "holdSec": 2,
+      "totalSec": 60,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    }
+  },
+  "fitError": "",
+  "session": {
+    "session_id": "1792555200000-8x9fzg1",
+    "module": "vor",
+    "mode": "continuous",
+    "settings": {
+      "ballArcmin": 60,
+      "changeMs": 500,
+      "totalSec": 10,
+      "distanceThresholdArcmin": 90,
+      "mode": "predictable",
+      "dwellMs": 500,
+      "horizontalSpanArcmin": 300,
+      "verticalSpanArcmin": 300,
+      "directions": [
+        "rightMiddle"
+      ]
+    },
+    "calibration": {
+      "screenWidthCm": 53,
+      "screenHeightCm": 30,
+      "viewingDistanceCm": 60,
+      "screenWidthPx": 1920,
+      "screenHeightPx": 1080,
+      "devicePixelRatio": 1,
+      "horizontalArcmin": 2859.53393735578,
+      "verticalArcmin": 1684.3492161511774,
+      "aspectMismatchPercent": 0.6249999999999978,
+      "createdAt": "2026-10-21T04:00:00.000Z"
+    },
+    "end_reason": "duration_complete",
+    "completed_targets": 0,
+    "actual_duration_ms": 10000,
+    "accuracy_rate": null,
+    "in_threshold_sec": 0,
+    "valid_sec": 0,
+    "blink_sec": 0,
+    "threshold_deg": 1.5,
+    "threshold_setting_deg": 1.5,
+    "tracker_error_allowance_deg": 0,
+    "validation_threshold_deg": null,
+    "threshold_arcmin": 90,
+    "planned_duration_ms": 10000,
+    "fullscreen_entered": true,
+    "eye_tracking": {
+      "source": "off",
+      "enabled": false,
+      "calibrated": false,
+      "calibrated_at": null,
+      "library": null,
+      "provider": null,
+      "provider_mode": null,
+      "sampling_interval_ms": null,
+      "clock_sync_estimated_uncertainty_ms": null,
+      "hardware_calibration_confirmed": null
+    },
+    "gaze_path": "[]",
+    "gaze_sample_count": 0,
+    "gaze_downsampled_count": 0,
+    "gaze_overflow_count": 0,
+    "gaze_rejected_timestamp_count": 0,
+    "gaze_missing_duration_ms": 0,
+    "viewport": {
+      "width": 1920,
+      "height": 1080
+    },
+    "stimulus": {
+      "arcsec": 3600,
+      "arcmin": 60,
+      "type": "numbers_dot",
+      "selected_directions": [
+        "rightMiddle"
+      ],
+      "width_px": 37.9372,
+      "height_px": 37.7001,
+      "diameter_cm": 1.047224
+    },
+    "timing": {
+      "clock": "performance.now",
+      "animation": "requestAnimationFrame",
+      "frame_count": 10,
+      "median_frame_gap_ms": 50,
+      "max_frame_gap_ms": 1000,
+      "estimated_refresh_hz": 20
+    },
+    "predictable_start_index": null,
+    "event_log": [
+      {
+        "event": "vor_change",
+        "actual_ms": 0,
+        "index": 0,
+        "planned_ms": 0,
+        "color": "#f4f7fb",
+        "digit": 1,
+        "skipped_intervals": 0
+      },
+      {
+        "event": "vor_change",
+        "actual_ms": 1000,
+        "index": 2,
+        "planned_ms": 1000,
+        "color": "#ff9f5b",
+        "digit": 8,
+        "skipped_intervals": 1
+      },
+      {
+        "event": "vor_change",
+        "actual_ms": 1500,
+        "index": 3,
+        "planned_ms": 1500,
+        "color": "#ffd166",
+        "digit": 7,
+        "skipped_intervals": 0
+      }
+    ],
+    "interaction_log": [],
+    "ended_at": "2026-10-21T04:00:00.000Z"
+  },
+  "filename": "SUBJ_JPF0O6_20261021_120000_VOR_Untracked_gaze_record.csv"
+}

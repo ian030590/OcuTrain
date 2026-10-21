@@ -1,0 +1,1219 @@
+{
+  "source": "P:\\3_Projects\\OcuTrain\\.tools\\anti-slop-baseline",
+  "errors": [],
+  "actions": [
+    "Display settings save -> main menu",
+    "vor: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+    "pursuit: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+    "saccade: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+    "fixation: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+    "calibration-dialog: open, Escape close",
+    "eye-tracking-dialog: open, Escape close"
+  ],
+  "states": [
+    {
+      "name": "setup",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [],
+      "missingLabels": [],
+      "weakFocus": [
+        "initial-subject-id",
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm",
+        "initial-eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "setup",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [],
+      "missingLabels": [],
+      "weakFocus": [
+        "initial-subject-id",
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm",
+        "initial-eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "setup",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [
+        {
+          "tag": "SECTION",
+          "class": "app-page",
+          "text": "OCULOMOTOR TRAINING\n          Authorized visual rehabilitation training system.\n     ",
+          "width": 390,
+          "contentWidth": 495
+        }
+      ],
+      "smallTargets": [],
+      "missingLabels": [],
+      "weakFocus": [
+        "initial-subject-id",
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm",
+        "initial-eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "setup",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [
+        {
+          "tag": "SECTION",
+          "class": "app-page",
+          "text": "OCULOMOTOR TRAINING\n          Authorized visual rehabilitation training system.\n     ",
+          "width": 320,
+          "contentWidth": 495
+        }
+      ],
+      "smallTargets": [],
+      "missingLabels": [],
+      "weakFocus": [
+        "initial-subject-id",
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm",
+        "initial-eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "menu",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Distance Setting",
+          "width": 132.625,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Instructions",
+          "width": 104.34375,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Calibration",
+          "width": 99.078125,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Eye tracking: Off",
+          "width": 132.96875,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "subject-id-input"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "menu",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Distance Setting",
+          "width": 132.625,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Instructions",
+          "width": 104.34375,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Calibration",
+          "width": 99.078125,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Eye tracking: Off",
+          "width": 132.96875,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "subject-id-input"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "menu",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [
+        {
+          "tag": "SECTION",
+          "class": "app-page",
+          "text": "OCULOMOTOR TRAINING\n          Authorized visual rehabilitation training system.\n     ",
+          "width": 390,
+          "contentWidth": 495
+        }
+      ],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Distance Setting",
+          "width": 132.625,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Instructions",
+          "width": 104.34375,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Calibration",
+          "width": 99.078125,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Eye tracking: Off",
+          "width": 132.96875,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "subject-id-input"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "menu",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [
+        {
+          "tag": "SECTION",
+          "class": "app-page",
+          "text": "OCULOMOTOR TRAINING\n          Authorized visual rehabilitation training system.\n     ",
+          "width": 320,
+          "contentWidth": 495
+        }
+      ],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Distance Setting",
+          "width": 132.625,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Instructions",
+          "width": 104.34375,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Calibration",
+          "width": 99.078125,
+          "height": 42
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Eye tracking: Off",
+          "width": 132.96875,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "subject-id-input"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "vor",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "ball-arcmin",
+        "threshold-arcmin",
+        "change-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "vor",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "ball-arcmin",
+        "threshold-arcmin",
+        "change-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "vor",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "ball-arcmin",
+        "threshold-arcmin",
+        "change-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "vor",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "ball-arcmin",
+        "threshold-arcmin",
+        "change-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "pursuit",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "pursuit",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "pursuit",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "pursuit",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "saccade",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "horizontal-span-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "vertical-span-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "dwell-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "saccade",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "horizontal-span-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "vertical-span-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "dwell-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "saccade",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "horizontal-span-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "vertical-span-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "dwell-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "saccade",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "horizontal-span-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "vertical-span-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "dwell-ms",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "fixation",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "hold-sec",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "fixation",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 594,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "hold-sec",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "fixation",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 266,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "hold-sec",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "fixation",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-ball-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "INPUT",
+          "text": "slider-threshold-arcmin",
+          "width": 196,
+          "height": 8
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [
+        "slider-ball-arcmin",
+        "slider-threshold-arcmin"
+      ],
+      "weakFocus": [
+        "module-mode",
+        "ball-arcmin",
+        "threshold-arcmin",
+        "speed-arcmin",
+        "hold-sec",
+        "total-sec"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "calibration-dialog",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "calibration-dialog",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "calibration-dialog",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "calibration-dialog",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "screen-width-cm",
+        "screen-height-cm",
+        "viewing-distance-cm"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "eye-tracking-dialog",
+      "width": 1366,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "eye-tracking-dialog",
+      "width": 800,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "eye-tracking-dialog",
+      "width": 390,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "eye-tracking-source"
+      ],
+      "pageOverflow": false
+    },
+    {
+      "name": "eye-tracking-dialog",
+      "width": 320,
+      "lowContrast": [],
+      "overflow": [],
+      "smallTargets": [
+        {
+          "tag": "BUTTON",
+          "text": "Close",
+          "width": 36,
+          "height": 36
+        },
+        {
+          "tag": "BUTTON",
+          "text": "Cancel",
+          "width": 71.734375,
+          "height": 42
+        }
+      ],
+      "missingLabels": [],
+      "weakFocus": [
+        "eye-tracking-source"
+      ],
+      "pageOverflow": false
+    }
+  ]
+}

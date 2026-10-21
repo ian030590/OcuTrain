@@ -32,7 +32,7 @@
 | Fixation | 目標移至邊緣後停留 | 僅計邊緣停留；排除中央十字及移動途中 |
 | Saccade | 目標在選定的九宮格位置間躍遷 | 沿用目標命中計分，每次目標出現後前 200 ms 排除；另計 TFF |
 
-螢幕設定的 Horizontal／Vertical angle 是整個螢幕的總視角。Saccade 的 **Horizontal／Vertical Target Span** 分別控制左右、上下兩側目標中心之間的總視角；實際像素位置依實體螢幕尺寸及觀看距離換算，範圍上限會預留目標半徑，避免刺激超出畫面。未曾設定範圍時，沿用原九宮格各格中央的位置。
+螢幕設定的 Horizontal／Vertical angle 是整個螢幕的總視角。Saccade 的 **Horizontal／Vertical Target Span** 以滑桿分別控制左右、上下兩側目標中心之間的總視角，顯示目前數值及上限；實際像素位置與滑桿上限依輸入的實體螢幕長寬及觀看距離換算，並預留目標半徑，避免刺激超出畫面。調大目標時，上限會同步縮小，超出上限的設定會自動調整。未曾設定範圍時，沿用原九宮格各格中央的位置。
 
 **Hit Distance Threshold** 是眼睛與目標中心之間的命中容許誤差，只影響 Accuracy。滑桿與數字欄共用依螢幕對角視角計算的上限，設定會隨模組儲存；刺激大小、跳躍範圍與命中誤差是各自獨立的參數。
 
@@ -92,7 +92,7 @@ npm run test:native
 
 ## 版本與授權
 
-版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`，Windows Tauri 2 遷移為 `v1.2.0`，Saccade 刺激範圍與命中門檻修正為 `v1.2.1`。
+版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`，Windows Tauri 2 遷移為 `v1.2.0`，Saccade 刺激範圍與命中門檻修正為 `v1.2.1`，目標範圍滑桿及介面操作修正為 `v1.2.2`。
 
 Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git tag 使用 `v<版本>`。
 

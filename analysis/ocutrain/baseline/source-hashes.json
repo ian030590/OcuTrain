@@ -1,0 +1,9 @@
+{
+  "wwwroot/app.js": "881873e9395ff766d98963b2f3c4cef6c1224cc8aea5232c8931242551922510",
+  "wwwroot/desktop.js": "c83cd798890eb0ba7284d450621a60c9eabd80e8dc07788fc7f940b67001297e",
+  "wwwroot/index.html": "c8cb2ff208d6dd37d82908f55646c4c343e33930c6bf4a8dbe56494b98f6dbb0",
+  "tests/tobii-bridge.test.cjs": "c2e08bd20a29e54c040cc0a5ee7e7fa6d89aedb106b3d6d3f2411a605cff8ef2",
+  "tests/desktop.test.cjs": "3461aa08538dec3da0fac24fdb245a29c49b221c6541da4c51e3d27d9328574d",
+  "tests/webgazer-runtime.test.cjs": "c7d92235f8ed8eaa08122ed18970d73e6d78f6a87edb54a7b332b94091a7ff2a",
+  "package.json": "42e147f232a1975fe261164cfde240a77f887e5061c31e86671fb349ac41524a"
+}

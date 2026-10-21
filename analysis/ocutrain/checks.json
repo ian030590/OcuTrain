@@ -1,0 +1,90 @@
+{
+  "baseline": {
+    "executed": 58,
+    "failed": [],
+    "skipped": 0
+  },
+  "current": {
+    "executed": 58,
+    "failed": [],
+    "skipped": 0
+  },
+  "canary": {
+    "executed": 49,
+    "failed": [
+      "effective 1.5 degree threshold is a radius and converts each physical axis separately",
+      "a camera validation threshold cannot carry over to a Tobii assessment",
+      "Tobii includes one degree of tolerance while retaining raw measured errors",
+      "a precise validation cannot remove the Tobii measurement allowance",
+      "the GUI threshold remains editable and changes the effective Tobii threshold"
+    ],
+    "skipped": 0
+  },
+  "comparison": {
+    "totals": {
+      "cases": 54,
+      "executed": 54,
+      "same": 54,
+      "differs": 0,
+      "differsApproved": 0,
+      "missing": 0
+    },
+    "selfCheck": {
+      "passed": true,
+      "detail": "each legacy output was compared with a copy changed by one byte and reported as different"
+    }
+  },
+  "freshComparison": {
+    "totals": {
+      "cases": 24,
+      "executed": 24,
+      "same": 24,
+      "differs": 0,
+      "differsApproved": 0,
+      "missing": 0
+    },
+    "selfCheck": {
+      "passed": true,
+      "detail": "each legacy output was compared with a copy changed by one byte and reported as different"
+    }
+  },
+  "canaryComparison": {
+    "totals": {
+      "cases": 54,
+      "executed": 54,
+      "same": 38,
+      "differs": 16,
+      "differsApproved": 0,
+      "missing": 0
+    },
+    "selfCheck": {
+      "passed": true,
+      "detail": "each legacy output was compared with a copy changed by one byte and reported as different"
+    }
+  },
+  "ui": {
+    "states": 36,
+    "errors": [],
+    "actions": [
+      "Display settings save -> main menu",
+      "vor: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+      "pursuit: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+      "saccade: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+      "fixation: open, modes/stimuli/directions where present, size/threshold synchronization, Escape close",
+      "calibration-dialog: open, Escape close",
+      "eye-tracking-dialog: open, Escape close",
+      "help-dialog: open, Escape close"
+    ],
+    "issues": []
+  },
+  "baselineUnchanged": true,
+  "currentSourceHashes": {
+    "wwwroot/app.js": "911e3987ca28fb9e921c9e317f7dbf67490e2f5f10509b16c7a97d1bc523aaee",
+    "wwwroot/desktop.js": "c83cd798890eb0ba7284d450621a60c9eabd80e8dc07788fc7f940b67001297e",
+    "wwwroot/index.html": "63ae48c9095e955b116df4fb710499652be8565571101560cbfd5b3a0d0ffd39",
+    "tests/tobii-bridge.test.cjs": "c2e08bd20a29e54c040cc0a5ee7e7fa6d89aedb106b3d6d3f2411a605cff8ef2",
+    "tests/desktop.test.cjs": "3461aa08538dec3da0fac24fdb245a29c49b221c6541da4c51e3d27d9328574d",
+    "tests/webgazer-runtime.test.cjs": "c7d92235f8ed8eaa08122ed18970d73e6d78f6a87edb54a7b332b94091a7ff2a",
+    "package.json": "42e147f232a1975fe261164cfde240a77f887e5061c31e86671fb349ac41524a"
+  }
+}

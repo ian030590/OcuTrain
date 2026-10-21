@@ -1,0 +1,55 @@
+# -- Oculomotor Rehabilitation Training System Test Report --
+# Subject ID: SUBJ_JPF0O6
+# Session ID: 1792555200000-8x9fzg1
+# Test Date: 2026-10-21
+# Test Time: 12:00:00
+# Training Module: Saccade (SACCADE)
+# Test Mode: Predictable
+# Display Physical Width: 45.2 cm
+# Display Physical Height: 25.3 cm
+# Screen Resolution: 1920 x 1080 px
+# Viewing Distance: 53 cm
+# Stimulus Type: White dot
+# Stimulus Size: 89 arcmin (1.48 deg)
+# Horizontal Target Span: 243 arcmin (left-to-right target centers)
+# Vertical Target Span: 177 arcmin (top-to-bottom target centers)
+# Movement Speed: 482 arcmin/s
+# Hit Distance Threshold: 7.02 deg (421.2 arcmin / approx. 276.2 px screen radius)
+# GUI Distance Threshold: 6.02 deg
+# Tobii Assumed Measurement-Error Allowance: 1 deg
+# Validation Threshold (2x Mean Error): N/A deg
+# Total Test Duration: 10.00 s
+# Valid Gaze Duration (Denominator): 0.05 s
+# Blink Duration (Excluded): 0.05 s
+# On-Target Duration (Numerator): 0.05 s
+# Gaze Accuracy Rate: 100 %
+# Accuracy Definition: On-target duration / valid gaze duration (not hardware calibration accuracy)
+# Accuracy Scoring Phases: Existing scoring phases; first 200 ms of each target excluded
+# Accuracy Sample Weight: accuracy_delta_t_ms is the valid interval overlapping scoring phases; is_within_threshold reports raw spatial proximity even during excluded phases
+# Mean Time To First Fixation (TFF): 50 ms
+# TFF Detected Targets: 1 / 2
+# TFF Definition: Target onset to first fixation onset AFTER detected eye movement; target hit not required; independent of the 200 ms accuracy grace window
+# TFF Fixation Classifier: I-VT-style; velocity <= 30 deg/s for >= 100 ms and >= 3 valid samples; gaps > 100 ms or invalid samples break fixation
+# TFF Target 1: 50 ms; direction=rightMiddle; status=detected; target_onset_ms=1000; fixation_onset_ms=1050; fixation_confirmed_ms=1150
+# TFF Target 2: N/A ms; direction=rightMiddle; status=no_movement_detected; target_onset_ms=1400; fixation_onset_ms=N/A; fixation_confirmed_ms=N/A
+# Sample Timing Reference: Tobii device timestamp mapped to the browser performance clock when synchronized
+# Clock Sync Estimated Uncertainty (half RTT): N/A (browser receipt time)
+# Excluded Missing-Sample Duration: 0.000 s
+# Rejected Duplicate/Out-of-Order Timestamps: 0
+# Enabled Directions: Right
+# Completed Targets: 1
+# Test Termination Reason: duration_complete
+# Eye Tracker Hardware: Tobii Eye Tracker 5
+# Sampling Frequency: Native SDK stream (source timestamps; no resampling)
+# Total Gaze Samples: 9
+# ------------------------------------------------------------
+sample_index,trial_time_ms,device_timestamp_us,delta_t_ms,instant_hz,gaze_valid,gaze_x_px,gaze_y_px,stimulus_x_px,stimulus_y_px,distance_error_px,distance_error_deg,is_within_threshold,phase,direction,browser_received_trial_time_ms,transport_delay_ms,stimulus_frame_time_ms,clock_mapping,target_number,accuracy_eligible,accuracy_delta_t_ms,gaze_velocity_deg_s,is_fixation,tff_ms
+1,1000,2000000,30.3,33,1,960,540,1039.6,540,79.6,2.026,1,"saccade_latency","Right",1000,0,1000,"tobii_system_clock_to_browser",1,0,0,,0,50
+2,1050,2050000,50,20,1,1171.2,540,1039.6,540,131.6,3.348,1,"saccade_latency","Right",1050,0,1050,"tobii_system_clock_to_browser",1,0,0,107.421,1,50
+3,1100,2100000,50,20,1,1171.2,540,1039.6,540,131.6,3.348,1,"saccade_latency","Right",1100,0,1100,"tobii_system_clock_to_browser",1,0,0,0,1,50
+4,1150,2150000,50,20,1,1171.2,540,1039.6,540,131.6,3.348,1,"saccade_latency","Right",1150,0,1150,"tobii_system_clock_to_browser",1,0,0,0,1,50
+5,1250,2250000,100,10,1,1171.2,540,1039.6,540,131.6,3.348,1,"dwell","Right",1250,0,1250,"tobii_system_clock_to_browser",1,1,50,0,1,50
+6,1300,2300000,50,20,0,,,1039.6,540,,,0,"dwell","Right",1300,0,1300,"tobii_system_clock_to_browser",1,1,0,,0,50
+7,1400,2400000,100,10,1,960,540,1039.6,540,79.6,2.026,1,"saccade_latency","Right",1400,0,1400,"tobii_system_clock_to_browser",2,0,0,,1,
+8,1450,2450000,50,20,1,960,540,1039.6,540,79.6,2.026,1,"saccade_latency","Right",1450,0,1450,"tobii_system_clock_to_browser",2,0,0,0,1,
+9,1500,2500000,50,20,1,960,540,1039.6,540,79.6,2.026,1,"saccade_latency","Right",1500,0,1500,"tobii_system_clock_to_browser",2,0,0,0,1,

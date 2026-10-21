@@ -1,0 +1,5 @@
+equivalence cases executed: 24
+same 24 | differs 0 | differs but approved 0 | missing 0 | of 24 cases
+self-check: passed - each legacy output was compared with a copy changed by one byte and reported as different
+PROVEN: 24 case(s) executed, none differ
+wrote analysis/ocutrain/equivalence/FRESH_EQUIVALENCE.json

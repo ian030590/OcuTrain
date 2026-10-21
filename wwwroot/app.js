@@ -516,6 +516,17 @@
       };
     }
 
+    function saccadeSpanLimits(settings, calibration) {
+      const ballArcmin = settings.ballArcmin || (settings.ballArcsec ? settings.ballArcsec / 60 : 60);
+      const diameterCm = physicalSizeForArcmin(ballArcmin, calibration.viewingDistanceCm);
+      const maxSpan = screenCm => Math.max(0.1, Math.floor(visualAngleArcmin(
+        Math.max(0, screenCm - diameterCm), calibration.viewingDistanceCm) * 10) / 10);
+      return {
+        horizontalArcmin: maxSpan(calibration.screenWidthCm),
+        verticalArcmin: maxSpan(calibration.screenHeightCm)
+      };
+    }
+
     function gazeErrorDegrees(dxPx, dyPx, calibration, screenPixels) {
       const dxCm = dxPx * calibration.screenWidthCm / screenPixels.width;
       const dyCm = dyPx * calibration.screenHeightCm / screenPixels.height;
@@ -1526,15 +1537,15 @@
           <label class="field-label" style="display:block; margin-bottom:6px;">Stimulus Type</label>
           <input type="hidden" name="stimulusType" id="module-stimulus-type" value="${stimType}">
           <div class="training-option-grid training-option-grid-three" id="stimulus-type-grid">
-            <button type="button" class="training-option ${stimType === 'white_dot' ? 'active' : ''}" data-stim-type="white_dot">
+            <button type="button" class="training-option ${stimType === 'white_dot' ? 'active' : ''}" data-stim-type="white_dot" aria-pressed="${stimType === 'white_dot'}">
               <span class="training-option-title">White dot</span>
               <span class="training-option-meta">Standard solid white dot</span>
             </button>
-            <button type="button" class="training-option ${stimType === 'red_in_white' ? 'active' : ''}" data-stim-type="red_in_white">
+            <button type="button" class="training-option ${stimType === 'red_in_white' ? 'active' : ''}" data-stim-type="red_in_white" aria-pressed="${stimType === 'red_in_white'}">
               <span class="training-option-title">Red in White</span>
               <span class="training-option-meta">White circle with red center</span>
             </button>
-            <button type="button" class="training-option ${stimType === 'numbers_dot' ? 'active' : ''}" data-stim-type="numbers_dot">
+            <button type="button" class="training-option ${stimType === 'numbers_dot' ? 'active' : ''}" data-stim-type="numbers_dot" aria-pressed="${stimType === 'numbers_dot'}">
               <span class="training-option-title">Numbers dot</span>
               <span class="training-option-meta">Dynamic numbers & colors</span>
             </button>
@@ -1546,7 +1557,7 @@
         <div class="field span-all" style="margin-top: 4px;">
           <div class="slider-card" style="margin-top: 0;">
             <div class="slider-card-header">
-              <span class="slider-card-title">Target Size</span>
+              <label class="slider-card-title" for="slider-ball-arcmin">Target Size</label>
               <span class="slider-value-pill" id="val-ball-size">${currentArcmin}' (${currentDeg}°)</span>
             </div>
             <input type="range" class="custom-range-slider" id="slider-ball-arcmin"
@@ -1576,7 +1587,7 @@
         <div class="field span-all" style="margin-top: 4px;">
           <div class="slider-card" style="margin-top: 0;">
             <div class="slider-card-header">
-              <span class="slider-card-title">Hit Distance Threshold</span>
+              <label class="slider-card-title" for="slider-threshold-arcmin">Hit Distance Threshold</label>
               <span class="slider-value-pill" id="val-threshold-size">${currentThreshArcmin}' (${currentThreshDeg}°)</span>
             </div>
             <input type="range" class="custom-range-slider" id="slider-threshold-arcmin"
@@ -1605,17 +1616,32 @@
           ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Session stops automatically when completed", step: "0.1" })}`;
       } else if (moduleKey === "saccade") {
         const layout = saccadeTargetLayout(settings, AppState.calibration);
-        const horizontalSpan = numberField({
-          id: "horizontal-span-arcmin", name: "horizontalSpanArcmin", label: "Horizontal Target Span (arcmin)",
-          value: round(layout.horizontalArcmin, 1), max: Math.floor(AppState.calibration.horizontalArcmin), unit: "arcmin",
-          hint: "Total angle between left and right target centers. Changes horizontal jump positions."
-        });
-        const verticalSpan = numberField({
-          id: "vertical-span-arcmin", name: "verticalSpanArcmin", label: "Vertical Target Span (arcmin)",
-          value: round(layout.verticalArcmin, 1), max: Math.floor(AppState.calibration.verticalArcmin), unit: "arcmin",
-          hint: "Total angle between top and bottom target centers. Leave room for the target radius at both edges."
-        });
-        paramFields = `${mode}${stimField}${horizontalSpan}${verticalSpan}${sizeSlider}${thresholdSlider}
+        const limits = saccadeSpanLimits(settings, AppState.calibration);
+        const spanSliders = [
+          ["horizontal", "Horizontal", "left and right"],
+          ["vertical", "Vertical", "top and bottom"]
+        ].map(([axis, title, edges]) => {
+          const max = limits[`${axis}Arcmin`];
+          const value = Math.max(0.1, Math.min(max, round(layout[`${axis}Arcmin`], 1)));
+          return `
+            <div class="field span-all target-span-slider">
+              <div class="slider-card">
+                <div class="slider-card-header">
+                  <label class="slider-card-title" for="${axis}-span-arcmin">${title} Target Span (arcmin)</label>
+                  <output class="slider-value-pill" id="val-${axis}-span" for="${axis}-span-arcmin">${formatNumber(value, 1)}' (${(value / 60).toFixed(2)}°)</output>
+                </div>
+                <input type="range" class="custom-range-slider" id="${axis}-span-arcmin"
+                       name="${axis}SpanArcmin" data-label="${title} Target Span (arcmin)"
+                       min="0.1" max="${max}" step="0.1" value="${value}" aria-describedby="${axis}-span-hint">
+                <div class="slider-scale-labels">
+                  <span>0.1'</span>
+                  <span id="max-${axis}-span">${formatNumber(max, 1)}' (${(max / 60).toFixed(2)}°)</span>
+                </div>
+              </div>
+              <p class="field-hint" id="${axis}-span-hint">Total angle between ${edges} target centers. Maximum uses screen size and viewing distance, with room for the target radius.</p>
+            </div>`;
+        }).join("");
+        paramFields = `${mode}${stimField}${spanSliders}${sizeSlider}${thresholdSlider}
           ${numberField({ id: "dwell-ms", name: "dwellMs", label: "Target Dwell Time (ms)", value: settings.dwellMs, unit: "ms", hint: "Target duration at each grid position", step: "1" })}
           ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Ignored in Evaluation mode", step: "0.1" })}`;
       } else if (moduleKey === "pursuit") {
@@ -1660,14 +1686,14 @@
               if (slot.type === 'dir') {
                 const isActive = currentDirs.includes(slot.key);
                 return `
-                  <button type="button" class="direction-btn ${isActive ? 'active' : ''}" data-axis-key="${slot.key}">
+                  <button type="button" class="direction-btn ${isActive ? 'active' : ''}" data-axis-key="${slot.key}" aria-pressed="${isActive}">
                     <span class="direction-btn-arrow">${slot.arrow}</span>
                     <span class="direction-btn-label">${slot.label}</span>
                   </button>`;
               } else {
                 const isAllActive = currentDirs.length === 8;
                 return `
-                  <button type="button" class="direction-btn ${isAllActive ? 'active' : ''}" data-center-btn>
+                  <button type="button" class="direction-btn ${isAllActive ? 'active' : ''}" data-center-btn aria-pressed="${isAllActive}">
                     <span class="direction-btn-arrow" style="font-size:15px; font-weight:900; letter-spacing:0.04em;">ALL</span>
                     <span class="direction-btn-label">ALL</span>
                   </button>`;
@@ -1762,8 +1788,12 @@
         const stimButtons = dialog.querySelectorAll(".training-option[data-stim-type]");
         stimButtons.forEach((btn) => {
           btn.addEventListener("click", () => {
-            stimButtons.forEach((b) => b.classList.remove("active"));
+            stimButtons.forEach((b) => {
+              b.classList.remove("active");
+              b.setAttribute("aria-pressed", "false");
+            });
             btn.classList.add("active");
+            btn.setAttribute("aria-pressed", "true");
             currentStimType = btn.dataset.stimType;
             const hiddenInput = form.querySelector("#module-stimulus-type");
             if (hiddenInput) hiddenInput.value = currentStimType;
@@ -1782,9 +1812,11 @@
             dirButtons.forEach((btn) => {
               const key = btn.dataset.axisKey;
               btn.classList.toggle("active", selectedDirs.includes(key));
+              btn.setAttribute("aria-pressed", String(selectedDirs.includes(key)));
             });
             if (centerBtn) {
               centerBtn.classList.toggle("active", selectedDirs.length === 8);
+              centerBtn.setAttribute("aria-pressed", String(selectedDirs.length === 8));
             }
             if (badgeEl) {
               badgeEl.textContent = `${selectedDirs.length}/8 directions enabled`;
@@ -1875,6 +1907,18 @@
 
     function updateModulePreview(form, moduleKey, extra = {}) {
       const output = form.querySelector("#target-preview");
+      if (moduleKey === "saccade" && AppState.calibration) {
+        const limits = saccadeSpanLimits({ ballArcmin: Number(form.elements.namedItem("ballArcmin").value) }, AppState.calibration);
+        for (const axis of ["horizontal", "vertical"]) {
+          const input = form.querySelector(`#${axis}-span-arcmin`);
+          const max = limits[`${axis}Arcmin`];
+          input.max = max;
+          input.value = Math.max(0.1, Math.min(max, Number(input.value)));
+          const value = Number(input.value);
+          form.querySelector(`#val-${axis}-span`).textContent = `${formatNumber(value, 1)}' (${(value / 60).toFixed(2)}°)`;
+          form.querySelector(`#max-${axis}-span`).textContent = `${formatNumber(max, 1)}' (${(max / 60).toFixed(2)}°)`;
+        }
+      }
       const settings = readModuleSettings(form, moduleKey);
       if (settings.errors.length || !AppState.calibration) {
         output.innerHTML = `<span>Rendered target size</span><strong>Enter valid values</strong>`;
@@ -1890,9 +1934,6 @@
       if (moduleKey === "saccade") {
         const layout = saccadeTargetLayout(settings.values, AppState.calibration);
         spanText = `<br>Target span: ${formatNumber(layout.horizontalArcmin, 1)}' horizontal × ${formatNumber(layout.verticalArcmin, 1)}' vertical`;
-        for (const [id, screenCm] of [["horizontal-span-arcmin", AppState.calibration.screenWidthCm], ["vertical-span-arcmin", AppState.calibration.screenHeightCm]]) {
-          form.querySelector(`#${id}`).max = Math.max(0, Math.floor(visualAngleArcmin(Math.max(0, screenCm - size.diameterCm), AppState.calibration.viewingDistanceCm) * 10) / 10);
-        }
       }
 
       const stimNames = {

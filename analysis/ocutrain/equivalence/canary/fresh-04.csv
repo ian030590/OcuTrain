@@ -1,0 +1,47 @@
+# -- Oculomotor Rehabilitation Training System Test Report --
+# Subject ID: SUBJ_JPF0O6
+# Session ID: 1792555200000-8x9fzg1
+# Test Date: 2026-10-21
+# Test Time: 12:00:00
+# Training Module: Fixation (FIXATION)
+# Test Mode: Predictable
+# Display Physical Width: 46.2 cm
+# Display Physical Height: 25.8 cm
+# Screen Resolution: 1920 x 1080 px
+# Viewing Distance: 56 cm
+# Stimulus Type: White dot
+# Stimulus Size: 137 arcmin (2.28 deg)
+# Movement Speed: 513 arcmin/s
+# Hit Distance Threshold: 2.17 deg (130.2 arcmin / approx. 88.2 px screen radius)
+# GUI Distance Threshold: 0.17 deg
+# WebGazer Assumed Measurement-Error Allowance: 2 deg
+# Validation Threshold (2x Mean Error): N/A deg
+# Total Test Duration: 10.00 s
+# Valid Gaze Duration (Denominator): 0.00 s
+# Blink Duration (Excluded): 0.05 s
+# On-Target Duration (Numerator): 0.00 s
+# Gaze Accuracy Rate: N/A (no valid gaze)
+# Accuracy Definition: On-target duration / valid gaze duration (not hardware calibration accuracy)
+# Accuracy Scoring Phases: Edge hold only; central cross and movement excluded
+# Accuracy Sample Weight: accuracy_delta_t_ms is the valid interval overlapping scoring phases; is_within_threshold reports raw spatial proximity even during excluded phases
+# Sample Timing Reference: WebGazer inference start on the browser performance clock (camera exposure timestamp unavailable); transport_delay_ms measures inference-start to callback delay, excluding camera capture and filtering delay
+# Clock Sync Estimated Uncertainty (half RTT): N/A (same browser performance clock; camera capture delay not measured)
+# Excluded Missing-Sample Duration: 0.000 s
+# Rejected Duplicate/Out-of-Order Timestamps: 0
+# Enabled Directions: Right
+# Completed Targets: 0
+# Test Termination Reason: duration_complete
+# Eye Tracker Hardware: WebGazer (Webcam Eye Tracking)
+# Sampling Frequency: ~30 Hz (Dynamic Webcam Sampling)
+# Total Gaze Samples: 9
+# ------------------------------------------------------------
+sample_index,trial_time_ms,device_timestamp_us,delta_t_ms,instant_hz,gaze_valid,gaze_x_px,gaze_y_px,stimulus_x_px,stimulus_y_px,distance_error_px,distance_error_deg,is_within_threshold,phase,direction,browser_received_trial_time_ms,transport_delay_ms,stimulus_frame_time_ms,clock_mapping,target_number,accuracy_eligible,accuracy_delta_t_ms,gaze_velocity_deg_s,is_fixation,tff_ms
+1,1000,2000000,30.3,33,1,960,540,960,540,0,0,1,"movement","Right",1000,0,1000,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+2,1050,2050000,50,20,1,1171.2,540,977.36,540,193.84,4.769,0,"movement","Right",1050,0,1050,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+3,1100,2100000,50,20,1,1171.2,540,994.73,540,176.47,4.343,0,"movement","Right",1100,0,1100,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+4,1150,2150000,50,20,1,1171.2,540,1012.09,540,159.11,3.916,0,"movement","Right",1150,0,1150,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+5,1250,2250000,100,10,1,1171.2,540,1046.82,540,124.38,3.061,0,"movement","Right",1250,0,1250,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+6,1300,2300000,50,20,0,,,1064.19,540,,,0,"movement","Right",1300,0,1300,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+7,1400,2400000,100,10,1,960,540,1098.92,540,138.92,3.419,0,"movement","Right",1400,0,1400,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+8,1450,2450000,50,20,1,960,540,1116.28,540,156.28,3.846,0,"movement","Right",1450,0,1450,"webgazer_inference_start_to_browser_performance",1,0,0,,,
+9,1500,2500000,50,20,1,960,540,1133.64,540,173.64,4.273,0,"movement","Right",1500,0,1500,"webgazer_inference_start_to_browser_performance",1,0,0,,,

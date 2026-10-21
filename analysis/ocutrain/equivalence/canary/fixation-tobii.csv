@@ -1,0 +1,47 @@
+# -- Oculomotor Rehabilitation Training System Test Report --
+# Subject ID: SUBJ_JPF0O6
+# Session ID: 1792555200000-8x9fzg1
+# Test Date: 2026-10-21
+# Test Time: 12:00:00
+# Training Module: Fixation (FIXATION)
+# Test Mode: Predictable
+# Display Physical Width: 53 cm
+# Display Physical Height: 30 cm
+# Screen Resolution: 1920 x 1080 px
+# Viewing Distance: 60 cm
+# Stimulus Type: White dot
+# Stimulus Size: 60 arcmin (1.00 deg)
+# Movement Speed: 300 arcmin/s
+# Hit Distance Threshold: 2.75 deg (165 arcmin / approx. 104.3 px screen radius)
+# GUI Distance Threshold: 1.5 deg
+# Tobii Assumed Measurement-Error Allowance: 1.25 deg
+# Validation Threshold (2x Mean Error): N/A deg
+# Total Test Duration: 10.00 s
+# Valid Gaze Duration (Denominator): 0.00 s
+# Blink Duration (Excluded): 0.05 s
+# On-Target Duration (Numerator): 0.00 s
+# Gaze Accuracy Rate: N/A (no valid gaze)
+# Accuracy Definition: On-target duration / valid gaze duration (not hardware calibration accuracy)
+# Accuracy Scoring Phases: Edge hold only; central cross and movement excluded
+# Accuracy Sample Weight: accuracy_delta_t_ms is the valid interval overlapping scoring phases; is_within_threshold reports raw spatial proximity even during excluded phases
+# Sample Timing Reference: Tobii device timestamp mapped to the browser performance clock when synchronized
+# Clock Sync Estimated Uncertainty (half RTT): N/A (browser receipt time)
+# Excluded Missing-Sample Duration: 0.000 s
+# Rejected Duplicate/Out-of-Order Timestamps: 0
+# Enabled Directions: Right
+# Completed Targets: 0
+# Test Termination Reason: duration_complete
+# Eye Tracker Hardware: Tobii Eye Tracker 5
+# Sampling Frequency: Native SDK stream (source timestamps; no resampling)
+# Total Gaze Samples: 9
+# ------------------------------------------------------------
+sample_index,trial_time_ms,device_timestamp_us,delta_t_ms,instant_hz,gaze_valid,gaze_x_px,gaze_y_px,stimulus_x_px,stimulus_y_px,distance_error_px,distance_error_deg,is_within_threshold,phase,direction,browser_received_trial_time_ms,transport_delay_ms,stimulus_frame_time_ms,clock_mapping,target_number,accuracy_eligible,accuracy_delta_t_ms,gaze_velocity_deg_s,is_fixation,tff_ms
+1,1000,2000000,30.3,33,1,960,540,960,540,0,0,1,"movement","Right",1000,0,1000,"tobii_system_clock_to_browser",1,0,0,,,
+2,1050,2050000,50,20,1,1171.2,540,969.48,540,201.72,5.313,0,"movement","Right",1050,0,1050,"tobii_system_clock_to_browser",1,0,0,,,
+3,1100,2100000,50,20,1,1171.2,540,978.97,540,192.23,5.064,0,"movement","Right",1100,0,1100,"tobii_system_clock_to_browser",1,0,0,,,
+4,1150,2150000,50,20,1,1171.2,540,988.45,540,182.75,4.814,0,"movement","Right",1150,0,1150,"tobii_system_clock_to_browser",1,0,0,,,
+5,1250,2250000,100,10,1,1171.2,540,1007.42,540,163.78,4.315,0,"movement","Right",1250,0,1250,"tobii_system_clock_to_browser",1,0,0,,,
+6,1300,2300000,50,20,0,,,1016.9,540,,,0,"movement","Right",1300,0,1300,"tobii_system_clock_to_browser",1,0,0,,,
+7,1400,2400000,100,10,1,960,540,1035.87,540,75.87,2,1,"movement","Right",1400,0,1400,"tobii_system_clock_to_browser",1,0,0,,,
+8,1450,2450000,50,20,1,960,540,1045.36,540,85.36,2.25,1,"movement","Right",1450,0,1450,"tobii_system_clock_to_browser",1,0,0,,,
+9,1500,2500000,50,20,1,960,540,1054.84,540,94.84,2.5,1,"movement","Right",1500,0,1500,"tobii_system_clock_to_browser",1,0,0,,,

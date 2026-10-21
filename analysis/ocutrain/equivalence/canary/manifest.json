@@ -1,0 +1,272 @@
+[
+  {
+    "id": "vor-tobii-csv",
+    "input": "vor-tobii",
+    "file": "vor-tobii.csv"
+  },
+  {
+    "id": "vor-tobii-json",
+    "input": "vor-tobii",
+    "file": "vor-tobii.json"
+  },
+  {
+    "id": "vor-webgazer-csv",
+    "input": "vor-webgazer",
+    "file": "vor-webgazer.csv"
+  },
+  {
+    "id": "vor-webgazer-json",
+    "input": "vor-webgazer",
+    "file": "vor-webgazer.json"
+  },
+  {
+    "id": "vor-off-csv",
+    "input": "vor-off",
+    "file": "vor-off.csv"
+  },
+  {
+    "id": "vor-off-json",
+    "input": "vor-off",
+    "file": "vor-off.json"
+  },
+  {
+    "id": "pursuit-tobii-csv",
+    "input": "pursuit-tobii",
+    "file": "pursuit-tobii.csv"
+  },
+  {
+    "id": "pursuit-tobii-json",
+    "input": "pursuit-tobii",
+    "file": "pursuit-tobii.json"
+  },
+  {
+    "id": "pursuit-webgazer-csv",
+    "input": "pursuit-webgazer",
+    "file": "pursuit-webgazer.csv"
+  },
+  {
+    "id": "pursuit-webgazer-json",
+    "input": "pursuit-webgazer",
+    "file": "pursuit-webgazer.json"
+  },
+  {
+    "id": "pursuit-off-csv",
+    "input": "pursuit-off",
+    "file": "pursuit-off.csv"
+  },
+  {
+    "id": "pursuit-off-json",
+    "input": "pursuit-off",
+    "file": "pursuit-off.json"
+  },
+  {
+    "id": "saccade-tobii-csv",
+    "input": "saccade-tobii",
+    "file": "saccade-tobii.csv"
+  },
+  {
+    "id": "saccade-tobii-json",
+    "input": "saccade-tobii",
+    "file": "saccade-tobii.json"
+  },
+  {
+    "id": "saccade-webgazer-csv",
+    "input": "saccade-webgazer",
+    "file": "saccade-webgazer.csv"
+  },
+  {
+    "id": "saccade-webgazer-json",
+    "input": "saccade-webgazer",
+    "file": "saccade-webgazer.json"
+  },
+  {
+    "id": "saccade-off-csv",
+    "input": "saccade-off",
+    "file": "saccade-off.csv"
+  },
+  {
+    "id": "saccade-off-json",
+    "input": "saccade-off",
+    "file": "saccade-off.json"
+  },
+  {
+    "id": "fixation-tobii-csv",
+    "input": "fixation-tobii",
+    "file": "fixation-tobii.csv"
+  },
+  {
+    "id": "fixation-tobii-json",
+    "input": "fixation-tobii",
+    "file": "fixation-tobii.json"
+  },
+  {
+    "id": "fixation-webgazer-csv",
+    "input": "fixation-webgazer",
+    "file": "fixation-webgazer.csv"
+  },
+  {
+    "id": "fixation-webgazer-json",
+    "input": "fixation-webgazer",
+    "file": "fixation-webgazer.json"
+  },
+  {
+    "id": "fixation-off-csv",
+    "input": "fixation-off",
+    "file": "fixation-off.csv"
+  },
+  {
+    "id": "fixation-off-json",
+    "input": "fixation-off",
+    "file": "fixation-off.json"
+  },
+  {
+    "id": "fresh-01-csv",
+    "input": "fresh-01",
+    "file": "fresh-01.csv"
+  },
+  {
+    "id": "fresh-01-json",
+    "input": "fresh-01",
+    "file": "fresh-01.json"
+  },
+  {
+    "id": "fresh-02-csv",
+    "input": "fresh-02",
+    "file": "fresh-02.csv"
+  },
+  {
+    "id": "fresh-02-json",
+    "input": "fresh-02",
+    "file": "fresh-02.json"
+  },
+  {
+    "id": "fresh-03-csv",
+    "input": "fresh-03",
+    "file": "fresh-03.csv"
+  },
+  {
+    "id": "fresh-03-json",
+    "input": "fresh-03",
+    "file": "fresh-03.json"
+  },
+  {
+    "id": "fresh-04-csv",
+    "input": "fresh-04",
+    "file": "fresh-04.csv"
+  },
+  {
+    "id": "fresh-04-json",
+    "input": "fresh-04",
+    "file": "fresh-04.json"
+  },
+  {
+    "id": "fresh-05-csv",
+    "input": "fresh-05",
+    "file": "fresh-05.csv"
+  },
+  {
+    "id": "fresh-05-json",
+    "input": "fresh-05",
+    "file": "fresh-05.json"
+  },
+  {
+    "id": "fresh-06-csv",
+    "input": "fresh-06",
+    "file": "fresh-06.csv"
+  },
+  {
+    "id": "fresh-06-json",
+    "input": "fresh-06",
+    "file": "fresh-06.json"
+  },
+  {
+    "id": "fresh-07-csv",
+    "input": "fresh-07",
+    "file": "fresh-07.csv"
+  },
+  {
+    "id": "fresh-07-json",
+    "input": "fresh-07",
+    "file": "fresh-07.json"
+  },
+  {
+    "id": "fresh-08-csv",
+    "input": "fresh-08",
+    "file": "fresh-08.csv"
+  },
+  {
+    "id": "fresh-08-json",
+    "input": "fresh-08",
+    "file": "fresh-08.json"
+  },
+  {
+    "id": "fresh-09-csv",
+    "input": "fresh-09",
+    "file": "fresh-09.csv"
+  },
+  {
+    "id": "fresh-09-json",
+    "input": "fresh-09",
+    "file": "fresh-09.json"
+  },
+  {
+    "id": "fresh-10-csv",
+    "input": "fresh-10",
+    "file": "fresh-10.csv"
+  },
+  {
+    "id": "fresh-10-json",
+    "input": "fresh-10",
+    "file": "fresh-10.json"
+  },
+  {
+    "id": "fresh-11-csv",
+    "input": "fresh-11",
+    "file": "fresh-11.csv"
+  },
+  {
+    "id": "fresh-11-json",
+    "input": "fresh-11",
+    "file": "fresh-11.json"
+  },
+  {
+    "id": "fresh-12-csv",
+    "input": "fresh-12",
+    "file": "fresh-12.csv"
+  },
+  {
+    "id": "fresh-12-json",
+    "input": "fresh-12",
+    "file": "fresh-12.json"
+  },
+  {
+    "id": "invalid-threshold-1-json",
+    "input": "invalid-threshold-1",
+    "file": "invalid-threshold-1.json"
+  },
+  {
+    "id": "invalid-threshold-2-json",
+    "input": "invalid-threshold-2",
+    "file": "invalid-threshold-2.json"
+  },
+  {
+    "id": "invalid-threshold-3-json",
+    "input": "invalid-threshold-3",
+    "file": "invalid-threshold-3.json"
+  },
+  {
+    "id": "invalid-threshold-4-json",
+    "input": "invalid-threshold-4",
+    "file": "invalid-threshold-4.json"
+  },
+  {
+    "id": "invalid-threshold-5-json",
+    "input": "invalid-threshold-5",
+    "file": "invalid-threshold-5.json"
+  },
+  {
+    "id": "invalid-threshold-6-json",
+    "input": "invalid-threshold-6",
+    "file": "invalid-threshold-6.json"
+  }
+]

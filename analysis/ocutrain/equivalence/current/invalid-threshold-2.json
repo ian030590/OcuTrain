@@ -1,0 +1,97 @@
+{
+  "input": {
+    "id": "invalid-threshold-2",
+    "module": "saccade",
+    "source": "off",
+    "invalid": true,
+    "settings": {
+      "distanceThresholdArcmin": 0
+    }
+  },
+  "calibration": {
+    "screenWidthCm": 53,
+    "screenHeightCm": 30,
+    "viewingDistanceCm": 60,
+    "screenWidthPx": 1920,
+    "screenHeightPx": 1080,
+    "devicePixelRatio": 1,
+    "horizontalArcmin": 2859.53393735578,
+    "verticalArcmin": 1684.3492161511774,
+    "aspectMismatchPercent": 0.6249999999999978,
+    "createdAt": "2026-10-21T04:00:00.000Z"
+  },
+  "parsed": {
+    "values": {
+      "ballArcmin": 60,
+      "horizontalSpanArcmin": 300,
+      "verticalSpanArcmin": 300,
+      "dwellMs": 500,
+      "totalSec": 10,
+      "ballArcsec": 3600,
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "directions": [
+        "rightMiddle"
+      ]
+    },
+    "errors": [
+      "distanceThresholdArcmin"
+    ]
+  },
+  "restored": {
+    "vor": {
+      "ballArcmin": 60,
+      "changeMs": 500,
+      "totalSec": 30
+    },
+    "pursuit": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "totalSec": 45,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    },
+    "saccade": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "dwellMs": 500,
+      "totalSec": 10,
+      "directions": [
+        "rightMiddle"
+      ],
+      "horizontalSpanArcmin": 300,
+      "verticalSpanArcmin": 300,
+      "ballArcsec": 3600
+    },
+    "fixation": {
+      "mode": "predictable",
+      "stimulusType": "white_dot",
+      "ballArcmin": 60,
+      "speedArcminSec": 300,
+      "holdSec": 2,
+      "totalSec": 60,
+      "directions": [
+        "leftUp",
+        "middleUp",
+        "rightUp",
+        "leftMiddle",
+        "rightMiddle",
+        "leftDown",
+        "middleDown",
+        "rightDown"
+      ]
+    }
+  },
+  "fitError": ""
+}

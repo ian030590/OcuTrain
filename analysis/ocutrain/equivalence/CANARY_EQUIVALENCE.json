@@ -1,0 +1,1326 @@
+{
+  "system": "ocutrain",
+  "generated": "2026-10-21T02:54:26Z",
+  "legacy": {
+    "label": "Working tree before anti-slop changes",
+    "command": "node analysis/ocutrain/equivalence/run.cjs .tools/anti-slop-baseline analysis/ocutrain/equivalence/baseline"
+  },
+  "new": {
+    "label": "Isolated canary: Tobii allowance increased by 0.25 degrees",
+    "command": ""
+  },
+  "selfCheck": {
+    "passed": true,
+    "detail": "each legacy output was compared with a copy changed by one byte and reported as different"
+  },
+  "totals": {
+    "cases": 54,
+    "executed": 54,
+    "same": 38,
+    "differs": 16,
+    "differsApproved": 0,
+    "missing": 0
+  },
+  "cases": [
+    {
+      "id": "vor-tobii-csv",
+      "title": "vor-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 15, byte 502.",
+      "legacyPath": "baseline/vor-tobii.csv",
+      "newPath": "canary/vor-tobii.csv",
+      "legacySha256": "ef190a793d1a454eea194d7e74af18949fd0b907fb263e58a2801c8646982632",
+      "newSha256": "c464316487f6b5664d4dc11ebd4367ee3bd50a4466b862ee4ab1b43432f8202d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3259,
+        "new": 3264
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 502,
+        "line": 15,
+        "legacy": "hreshold: 2.5 deg (150 arcmin / approx. ",
+        "new": "hreshold: 2.75 deg (165 arcmin / approx.",
+        "at": 12
+      }
+    },
+    {
+      "id": "vor-tobii-json",
+      "title": "vor-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 127, byte 2934.",
+      "legacyPath": "baseline/vor-tobii.json",
+      "newPath": "canary/vor-tobii.json",
+      "legacySha256": "0ad9b897a58a81cb8f4bae5c782216ac61829db8f6464b545a04d7b6d0d5281c",
+      "newSha256": "7b5999f09562a7b11e2ecd9767f57ff19b2f909fddc8d5829a9f71f9ff4cbc36",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9461,
+        "new": 9465
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 2934,
+        "line": 127,
+        "legacy": "old_deg\": 2.5,\\n    \"threshold_setting_d",
+        "new": "old_deg\": 2.75,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "vor-webgazer-csv",
+      "title": "vor-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 3587 bytes.",
+      "legacyPath": "baseline/vor-webgazer.csv",
+      "newPath": "canary/vor-webgazer.csv",
+      "legacySha256": "8dccef80eaad21e3adf3de5d76379c4d1ea75aac1bf91ce0b4b4a67022f7551b",
+      "newSha256": "8dccef80eaad21e3adf3de5d76379c4d1ea75aac1bf91ce0b4b4a67022f7551b",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3587,
+        "new": 3587
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "vor-webgazer-json",
+      "title": "vor-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 6841 bytes.",
+      "legacyPath": "baseline/vor-webgazer.json",
+      "newPath": "canary/vor-webgazer.json",
+      "legacySha256": "45053dd8301574a87e40ced6037d654ff2a51f8e50846d4e3d5e0e51d906fe37",
+      "newSha256": "45053dd8301574a87e40ced6037d654ff2a51f8e50846d4e3d5e0e51d906fe37",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6841,
+        "new": 6841
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "vor-off-csv",
+      "title": "vor-off",
+      "verdict": "same",
+      "reason": "Identical, 2068 bytes.",
+      "legacyPath": "baseline/vor-off.csv",
+      "newPath": "canary/vor-off.csv",
+      "legacySha256": "aca8b7eec724ba14e6ba5467bc6ac931194bd0f7caaf87802275134bb731f275",
+      "newSha256": "aca8b7eec724ba14e6ba5467bc6ac931194bd0f7caaf87802275134bb731f275",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2068,
+        "new": 2068
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "vor-off-json",
+      "title": "vor-off",
+      "verdict": "same",
+      "reason": "Identical, 5003 bytes.",
+      "legacyPath": "baseline/vor-off.json",
+      "newPath": "canary/vor-off.json",
+      "legacySha256": "b303e326020d960ad1639c1c9d4173c051f9add06964a88da19dea6bbec1549a",
+      "newSha256": "b303e326020d960ad1639c1c9d4173c051f9add06964a88da19dea6bbec1549a",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5003,
+        "new": 5003
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "pursuit-tobii-csv",
+      "title": "pursuit-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 15, byte 504.",
+      "legacyPath": "baseline/pursuit-tobii.csv",
+      "newPath": "canary/pursuit-tobii.csv",
+      "legacySha256": "b68c2cdfcb1299f7619f695a120a134152e3ea2c1c5bf16821f219ed6e24afe5",
+      "newSha256": "ab898846cef222a5c89799113a6d7bb58f0617126a785b6f59184f42ef6707fb",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3365,
+        "new": 3370
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 504,
+        "line": 15,
+        "legacy": "hreshold: 2.5 deg (150 arcmin / approx. ",
+        "new": "hreshold: 2.75 deg (165 arcmin / approx.",
+        "at": 12
+      }
+    },
+    {
+      "id": "pursuit-tobii-json",
+      "title": "pursuit-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 127, byte 2991.",
+      "legacyPath": "baseline/pursuit-tobii.json",
+      "newPath": "canary/pursuit-tobii.json",
+      "legacySha256": "0dbbe3e5bb7bbfa7e3032f63925faadca9b0fc67eeb1e85d3f48ae4c3c28358f",
+      "newSha256": "6edb4b5b182417b0afa00dbb9487ab5906978bcc7a5e04a753047f44647b5706",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9264,
+        "new": 9268
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 2991,
+        "line": 127,
+        "legacy": "old_deg\": 2.5,\\n    \"threshold_setting_d",
+        "new": "old_deg\": 2.75,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "pursuit-webgazer-csv",
+      "title": "pursuit-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 3693 bytes.",
+      "legacyPath": "baseline/pursuit-webgazer.csv",
+      "newPath": "canary/pursuit-webgazer.csv",
+      "legacySha256": "0856254ff2fb8ac16e3f157aea1d2f6e9bef74160b8b61fafd3304e977c981fb",
+      "newSha256": "0856254ff2fb8ac16e3f157aea1d2f6e9bef74160b8b61fafd3304e977c981fb",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3693,
+        "new": 3693
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "pursuit-webgazer-json",
+      "title": "pursuit-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 6644 bytes.",
+      "legacyPath": "baseline/pursuit-webgazer.json",
+      "newPath": "canary/pursuit-webgazer.json",
+      "legacySha256": "4c3b12695ec122bea6bc9ddeb2e4222873e828e01d01d0a96db359a1504d772f",
+      "newSha256": "4c3b12695ec122bea6bc9ddeb2e4222873e828e01d01d0a96db359a1504d772f",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6644,
+        "new": 6644
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "pursuit-off-csv",
+      "title": "pursuit-off",
+      "verdict": "same",
+      "reason": "Identical, 2103 bytes.",
+      "legacyPath": "baseline/pursuit-off.csv",
+      "newPath": "canary/pursuit-off.csv",
+      "legacySha256": "20a26ea797dee80cabd79867392c4e9e3018b78c4a046eef4dd173e844df5bcf",
+      "newSha256": "20a26ea797dee80cabd79867392c4e9e3018b78c4a046eef4dd173e844df5bcf",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2103,
+        "new": 2103
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "pursuit-off-json",
+      "title": "pursuit-off",
+      "verdict": "same",
+      "reason": "Identical, 4807 bytes.",
+      "legacyPath": "baseline/pursuit-off.json",
+      "newPath": "canary/pursuit-off.json",
+      "legacySha256": "1c87c07e99b5d01f66dd4d6a950d1f4d54760066c0900d2517b9c63173b24870",
+      "newSha256": "1c87c07e99b5d01f66dd4d6a950d1f4d54760066c0900d2517b9c63173b24870",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4807,
+        "new": 4807
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "saccade-tobii-csv",
+      "title": "saccade-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 17, byte 624.",
+      "legacyPath": "baseline/saccade-tobii.csv",
+      "newPath": "canary/saccade-tobii.csv",
+      "legacySha256": "8ec57d8437f9b69eac20f9fa4a9f7594ea86b4d944492d71f3fe79a0940ac450",
+      "newSha256": "af6dae4494c14d372650d89aacdc7b4a69acaf2135e27a1364862a3689fc1911",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4212,
+        "new": 4218
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 624,
+        "line": 17,
+        "legacy": "hreshold: 2.5 deg (150 arcmin / approx. ",
+        "new": "hreshold: 2.75 deg (165 arcmin / approx.",
+        "at": 12
+      }
+    },
+    {
+      "id": "saccade-tobii-json",
+      "title": "saccade-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 126, byte 2986.",
+      "legacyPath": "baseline/saccade-tobii.json",
+      "newPath": "canary/saccade-tobii.json",
+      "legacySha256": "634a2d9a4f563662d44d6f0ad333858117b8ccb56fdcbe9d323196fbe6d63a99",
+      "newSha256": "8151177035b488330e9a537790377ad31cdb710da3d5bbe29935c148cb39d655",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 10691,
+        "new": 10699
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 2986,
+        "line": 126,
+        "legacy": "racy_rate\": 0,\\n    \"tff_mean_ms\": 50,\\n",
+        "new": "racy_rate\": 75,\\n    \"tff_mean_ms\": 50,\\",
+        "at": 12
+      }
+    },
+    {
+      "id": "saccade-webgazer-csv",
+      "title": "saccade-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 4542 bytes.",
+      "legacyPath": "baseline/saccade-webgazer.csv",
+      "newPath": "canary/saccade-webgazer.csv",
+      "legacySha256": "3135b1bacb021fdbecb6a74fa10fa1c5798484084b67b74f6b7ebf2df6c44397",
+      "newSha256": "3135b1bacb021fdbecb6a74fa10fa1c5798484084b67b74f6b7ebf2df6c44397",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4542,
+        "new": 4542
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "saccade-webgazer-json",
+      "title": "saccade-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 8075 bytes.",
+      "legacyPath": "baseline/saccade-webgazer.json",
+      "newPath": "canary/saccade-webgazer.json",
+      "legacySha256": "997dbbe49f27365aa3edc0a382b36a185d844d18b0416426b1f3e7e137eb86c3",
+      "newSha256": "997dbbe49f27365aa3edc0a382b36a185d844d18b0416426b1f3e7e137eb86c3",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 8075,
+        "new": 8075
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "saccade-off-csv",
+      "title": "saccade-off",
+      "verdict": "same",
+      "reason": "Identical, 2897 bytes.",
+      "legacyPath": "baseline/saccade-off.csv",
+      "newPath": "canary/saccade-off.csv",
+      "legacySha256": "fa040169dbb3c81d3a9b737c3f6f64377873b406c1982cd001b36a34b0d49125",
+      "newSha256": "fa040169dbb3c81d3a9b737c3f6f64377873b406c1982cd001b36a34b0d49125",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2897,
+        "new": 2897
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "saccade-off-json",
+      "title": "saccade-off",
+      "verdict": "same",
+      "reason": "Identical, 6251 bytes.",
+      "legacyPath": "baseline/saccade-off.json",
+      "newPath": "canary/saccade-off.json",
+      "legacySha256": "f22ea2e10b928a2443272b404afd0910b6c9645761ce1c7dc640cd62feebfbed",
+      "newSha256": "f22ea2e10b928a2443272b404afd0910b6c9645761ce1c7dc640cd62feebfbed",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6251,
+        "new": 6251
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fixation-tobii-csv",
+      "title": "fixation-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 15, byte 499.",
+      "legacyPath": "baseline/fixation-tobii.csv",
+      "newPath": "canary/fixation-tobii.csv",
+      "legacySha256": "c1cb61a5b3c6f902f9cd64f1bc83bbb9cd112082f0f6cf9eb46c88a7cde8ca3c",
+      "newSha256": "079361d69e634ebc48023bd756d52ce306b406bf650ef5c91efef8f75c35e82b",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3358,
+        "new": 3363
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 499,
+        "line": 15,
+        "legacy": "hreshold: 2.5 deg (150 arcmin / approx. ",
+        "new": "hreshold: 2.75 deg (165 arcmin / approx.",
+        "at": 12
+      }
+    },
+    {
+      "id": "fixation-tobii-json",
+      "title": "fixation-tobii",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 129, byte 3028.",
+      "legacyPath": "baseline/fixation-tobii.json",
+      "newPath": "canary/fixation-tobii.json",
+      "legacySha256": "057c94faef36b37e1f9bbb421eb037dcf48fc410982f45d57864450f27965afa",
+      "newSha256": "0456b23304759b942c180a7265f6d6920ec58bec696c278b1cdf78b9db0698e3",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9302,
+        "new": 9306
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 3028,
+        "line": 129,
+        "legacy": "old_deg\": 2.5,\\n    \"threshold_setting_d",
+        "new": "old_deg\": 2.75,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "fixation-webgazer-csv",
+      "title": "fixation-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 3686 bytes.",
+      "legacyPath": "baseline/fixation-webgazer.csv",
+      "newPath": "canary/fixation-webgazer.csv",
+      "legacySha256": "407ff663d32e58f1ea5a61f6bc0454ce251c4732d6e6ad95e5dab553ed1029da",
+      "newSha256": "407ff663d32e58f1ea5a61f6bc0454ce251c4732d6e6ad95e5dab553ed1029da",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3686,
+        "new": 3686
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fixation-webgazer-json",
+      "title": "fixation-webgazer",
+      "verdict": "same",
+      "reason": "Identical, 6682 bytes.",
+      "legacyPath": "baseline/fixation-webgazer.json",
+      "newPath": "canary/fixation-webgazer.json",
+      "legacySha256": "f008941fb7cabb04935ec96aa8f48de829340faf3174e625e5e04a251c394c20",
+      "newSha256": "f008941fb7cabb04935ec96aa8f48de829340faf3174e625e5e04a251c394c20",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6682,
+        "new": 6682
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fixation-off-csv",
+      "title": "fixation-off",
+      "verdict": "same",
+      "reason": "Identical, 2093 bytes.",
+      "legacyPath": "baseline/fixation-off.csv",
+      "newPath": "canary/fixation-off.csv",
+      "legacySha256": "ba24dd514cf607309780bd2313e0ddd27eeefcf1bf56ea073c9bbb01ccb24f31",
+      "newSha256": "ba24dd514cf607309780bd2313e0ddd27eeefcf1bf56ea073c9bbb01ccb24f31",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2093,
+        "new": 2093
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fixation-off-json",
+      "title": "fixation-off",
+      "verdict": "same",
+      "reason": "Identical, 4851 bytes.",
+      "legacyPath": "baseline/fixation-off.json",
+      "newPath": "canary/fixation-off.json",
+      "legacySha256": "5e1f676d039231c81452976eab53d3614917e7068f9b67211baf440afa93dd80",
+      "newSha256": "5e1f676d039231c81452976eab53d3614917e7068f9b67211baf440afa93dd80",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4851,
+        "new": 4851
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-01-csv",
+      "title": "fresh-01",
+      "verdict": "same",
+      "reason": "Identical, 3602 bytes.",
+      "legacyPath": "baseline/fresh-01.csv",
+      "newPath": "canary/fresh-01.csv",
+      "legacySha256": "24a565e27f14b3effcfcbd0286bf21d268b52862575361e462f4ef242cfce19b",
+      "newSha256": "24a565e27f14b3effcfcbd0286bf21d268b52862575361e462f4ef242cfce19b",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3602,
+        "new": 3602
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-01-json",
+      "title": "fresh-01",
+      "verdict": "same",
+      "reason": "Identical, 7194 bytes.",
+      "legacyPath": "baseline/fresh-01.json",
+      "newPath": "canary/fresh-01.json",
+      "legacySha256": "d6ed83561ef0fe7b248e8c8ace766b41cd4de54f08f3b2c8548c8d7e3a711e1d",
+      "newSha256": "d6ed83561ef0fe7b248e8c8ace766b41cd4de54f08f3b2c8548c8d7e3a711e1d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 7194,
+        "new": 7194
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-02-csv",
+      "title": "fresh-02",
+      "verdict": "same",
+      "reason": "Identical, 2111 bytes.",
+      "legacyPath": "baseline/fresh-02.csv",
+      "newPath": "canary/fresh-02.csv",
+      "legacySha256": "8041841f07dfb67e2e367dcc6ac66cdd30dc5124ef1fe9d3c837b26937d1af60",
+      "newSha256": "8041841f07dfb67e2e367dcc6ac66cdd30dc5124ef1fe9d3c837b26937d1af60",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2111,
+        "new": 2111
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-02-json",
+      "title": "fresh-02",
+      "verdict": "same",
+      "reason": "Identical, 5145 bytes.",
+      "legacyPath": "baseline/fresh-02.json",
+      "newPath": "canary/fresh-02.json",
+      "legacySha256": "ef42efdbbd674d2a6733efa0bbf044187f9a56b81fb34c944341dffdda38e209",
+      "newSha256": "ef42efdbbd674d2a6733efa0bbf044187f9a56b81fb34c944341dffdda38e209",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5145,
+        "new": 5145
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-03-csv",
+      "title": "fresh-03",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 17, byte 637.",
+      "legacyPath": "baseline/fresh-03.csv",
+      "newPath": "canary/fresh-03.csv",
+      "legacySha256": "cea4209f7c2f42fe286a3e0d989d689f3391ce3906d3395234c9a25ac446bc1b",
+      "newSha256": "3121758c0ffc471fc514577052362c12be7ef5698f6af81d46caf99105abea96",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4245,
+        "new": 4246
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 637,
+        "line": 17,
+        "legacy": "hreshold: 7.02 deg (421.2 arcmin / appro",
+        "new": "hreshold: 7.27 deg (436.2 arcmin / appro",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-03-json",
+      "title": "fresh-03",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 177, byte 4364.",
+      "legacyPath": "baseline/fresh-03.json",
+      "newPath": "canary/fresh-03.json",
+      "legacySha256": "7e69e00826feecfe46163a68563a588613f9d6d5a0f217381d5183173dc6b113",
+      "newSha256": "de30492fad7bb5ad199434a37667ff190753de212b2c0e984369155e2629c438",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 11062,
+        "new": 11065
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 4364,
+        "line": 177,
+        "legacy": "old_deg\": 7.02,\\n    \"threshold_setting_",
+        "new": "old_deg\": 7.27,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-04-csv",
+      "title": "fresh-04",
+      "verdict": "same",
+      "reason": "Identical, 3706 bytes.",
+      "legacyPath": "baseline/fresh-04.csv",
+      "newPath": "canary/fresh-04.csv",
+      "legacySha256": "217702cbfd1be4e546dec2deddd5aa220969201cb55aee1dc07fbe9a425b15f2",
+      "newSha256": "217702cbfd1be4e546dec2deddd5aa220969201cb55aee1dc07fbe9a425b15f2",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3706,
+        "new": 3706
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-04-json",
+      "title": "fresh-04",
+      "verdict": "same",
+      "reason": "Identical, 7009 bytes.",
+      "legacyPath": "baseline/fresh-04.json",
+      "newPath": "canary/fresh-04.json",
+      "legacySha256": "6e84560fd4fa47dffae164d5491deea30027cf2dac32bd16852f07c24a6136aa",
+      "newSha256": "6e84560fd4fa47dffae164d5491deea30027cf2dac32bd16852f07c24a6136aa",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 7009,
+        "new": 7009
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-05-csv",
+      "title": "fresh-05",
+      "verdict": "same",
+      "reason": "Identical, 2086 bytes.",
+      "legacyPath": "baseline/fresh-05.csv",
+      "newPath": "canary/fresh-05.csv",
+      "legacySha256": "1b1eba2f74c90488821f7063c72faf0c8483a90141f68e78883b98279229443d",
+      "newSha256": "1b1eba2f74c90488821f7063c72faf0c8483a90141f68e78883b98279229443d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2086,
+        "new": 2086
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-05-json",
+      "title": "fresh-05",
+      "verdict": "same",
+      "reason": "Identical, 5360 bytes.",
+      "legacyPath": "baseline/fresh-05.json",
+      "newPath": "canary/fresh-05.json",
+      "legacySha256": "981b282fa06804eec15db227d2e787005bca58051a990e3350bac408923128ae",
+      "newSha256": "981b282fa06804eec15db227d2e787005bca58051a990e3350bac408923128ae",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5360,
+        "new": 5360
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-06-csv",
+      "title": "fresh-06",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 15, byte 508.",
+      "legacyPath": "baseline/fresh-06.csv",
+      "newPath": "canary/fresh-06.csv",
+      "legacySha256": "0e5eaa5309a8a779070af66a35a7b0983ef1c93d31373646aa406245270b9466",
+      "newSha256": "677ec7df9ccd1303405251e625fc9b9e9876fabbabb597a17aee32683a837be3",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3381,
+        "new": 3386
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 508,
+        "line": 15,
+        "legacy": "hreshold: 7.02 deg (421.2 arcmin / appro",
+        "new": "hreshold: 7.27 deg (436.2 arcmin / appro",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-06-json",
+      "title": "fresh-06",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 140, byte 3322.",
+      "legacyPath": "baseline/fresh-06.json",
+      "newPath": "canary/fresh-06.json",
+      "legacySha256": "e5d08fa3eee05c9bf51040132e3eb837321db68229ccfda1e98a7dbf03c5b5be",
+      "newSha256": "c38a6d23e0760ec9557839104fa998eba951109398903531b8368ca7320b5726",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9599,
+        "new": 9602
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 3322,
+        "line": 140,
+        "legacy": "old_deg\": 7.02,\\n    \"threshold_setting_",
+        "new": "old_deg\": 7.27,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-07-csv",
+      "title": "fresh-07",
+      "verdict": "same",
+      "reason": "Identical, 4562 bytes.",
+      "legacyPath": "baseline/fresh-07.csv",
+      "newPath": "canary/fresh-07.csv",
+      "legacySha256": "3b84b2cd5fe0d37f3daf459ab992441d84af6c1cac1a1b100049412921ff42d0",
+      "newSha256": "3b84b2cd5fe0d37f3daf459ab992441d84af6c1cac1a1b100049412921ff42d0",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4562,
+        "new": 4562
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-07-json",
+      "title": "fresh-07",
+      "verdict": "same",
+      "reason": "Identical, 8426 bytes.",
+      "legacyPath": "baseline/fresh-07.json",
+      "newPath": "canary/fresh-07.json",
+      "legacySha256": "79dfeff52634f838859e52bfffb128496ceaf9a28481553fe50c7058836bb458",
+      "newSha256": "79dfeff52634f838859e52bfffb128496ceaf9a28481553fe50c7058836bb458",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 8426,
+        "new": 8426
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-08-csv",
+      "title": "fresh-08",
+      "verdict": "same",
+      "reason": "Identical, 2104 bytes.",
+      "legacyPath": "baseline/fresh-08.csv",
+      "newPath": "canary/fresh-08.csv",
+      "legacySha256": "dd68b674b61ee08d64f0c0c66dff408072911312a4663dfff8791aeb276b6083",
+      "newSha256": "dd68b674b61ee08d64f0c0c66dff408072911312a4663dfff8791aeb276b6083",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2104,
+        "new": 2104
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-08-json",
+      "title": "fresh-08",
+      "verdict": "same",
+      "reason": "Identical, 5194 bytes.",
+      "legacyPath": "baseline/fresh-08.json",
+      "newPath": "canary/fresh-08.json",
+      "legacySha256": "8fe8962fd86c3145ec19bc2be69a86baf8bcfa64981d0473bea69320426e4811",
+      "newSha256": "8fe8962fd86c3145ec19bc2be69a86baf8bcfa64981d0473bea69320426e4811",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5194,
+        "new": 5194
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-09-csv",
+      "title": "fresh-09",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 15, byte 514.",
+      "legacyPath": "baseline/fresh-09.csv",
+      "newPath": "canary/fresh-09.csv",
+      "legacySha256": "22a943fc320428a47d24bf5b9109a2eb56d452663c75fcbb69f9a5b143aed1d8",
+      "newSha256": "97cce41d3cd117bf8e091b1e112e5f600211bc6b48512bdb184a9a55f05af2d2",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3274,
+        "new": 3277
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 514,
+        "line": 15,
+        "legacy": "hreshold: 7.02 deg (421.2 arcmin / appro",
+        "new": "hreshold: 7.27 deg (436.2 arcmin / appro",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-09-json",
+      "title": "fresh-09",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 141, byte 3287.",
+      "legacyPath": "baseline/fresh-09.json",
+      "newPath": "canary/fresh-09.json",
+      "legacySha256": "ddb4cf7ae183df35403c00500b7cabf7f9afba6ae970ab1a6ab85e736806b2bf",
+      "newSha256": "66b63a28836c8b69310a0ef3ab84422e4aa4cd946a98d3a846c72d47e2603a42",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9813,
+        "new": 9816
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 3287,
+        "line": 141,
+        "legacy": "old_deg\": 7.02,\\n    \"threshold_setting_",
+        "new": "old_deg\": 7.27,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-10-csv",
+      "title": "fresh-10",
+      "verdict": "same",
+      "reason": "Identical, 3711 bytes.",
+      "legacyPath": "baseline/fresh-10.csv",
+      "newPath": "canary/fresh-10.csv",
+      "legacySha256": "193a24944229a6b8215bb9d641030094974650bab64facd0e82d01dd558a18ca",
+      "newSha256": "193a24944229a6b8215bb9d641030094974650bab64facd0e82d01dd558a18ca",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3711,
+        "new": 3711
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-10-json",
+      "title": "fresh-10",
+      "verdict": "same",
+      "reason": "Identical, 6950 bytes.",
+      "legacyPath": "baseline/fresh-10.json",
+      "newPath": "canary/fresh-10.json",
+      "legacySha256": "25112ab39f4a0261d892a96bde91c92a9c85b30b70a0fa87be69c18c12de92d1",
+      "newSha256": "25112ab39f4a0261d892a96bde91c92a9c85b30b70a0fa87be69c18c12de92d1",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6950,
+        "new": 6950
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-11-csv",
+      "title": "fresh-11",
+      "verdict": "same",
+      "reason": "Identical, 2916 bytes.",
+      "legacyPath": "baseline/fresh-11.csv",
+      "newPath": "canary/fresh-11.csv",
+      "legacySha256": "86c6fe225d537bb3df2a3d50a3d813d45058f7fc98776e4d65e07df04e062bf6",
+      "newSha256": "86c6fe225d537bb3df2a3d50a3d813d45058f7fc98776e4d65e07df04e062bf6",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2916,
+        "new": 2916
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-11-json",
+      "title": "fresh-11",
+      "verdict": "same",
+      "reason": "Identical, 6619 bytes.",
+      "legacyPath": "baseline/fresh-11.json",
+      "newPath": "canary/fresh-11.json",
+      "legacySha256": "3d91e8183b3acd2dcc321cd7fe86bfb17e5ca8e1b97cd89f31b7c5d220ca363d",
+      "newSha256": "3d91e8183b3acd2dcc321cd7fe86bfb17e5ca8e1b97cd89f31b7c5d220ca363d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6619,
+        "new": 6619
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-12-csv",
+      "title": "fresh-12",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 15, byte 504.",
+      "legacyPath": "baseline/fresh-12.csv",
+      "newPath": "canary/fresh-12.csv",
+      "legacySha256": "101a5c87e05310b9bd856f2c56d5e8156bb9e0b473ff7e6cd3d094a6981e0261",
+      "newSha256": "144a6a998813483414570853adbbbb8ce78135d86582feb8fda54e3aa93e8bd3",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3374,
+        "new": 3377
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 504,
+        "line": 15,
+        "legacy": "hreshold: 7.02 deg (421.2 arcmin / appro",
+        "new": "hreshold: 7.27 deg (436.2 arcmin / appro",
+        "at": 12
+      }
+    },
+    {
+      "id": "fresh-12-json",
+      "title": "fresh-12",
+      "verdict": "differs",
+      "reason": "The outputs first differ at line 142, byte 3359.",
+      "legacyPath": "baseline/fresh-12.json",
+      "newPath": "canary/fresh-12.json",
+      "legacySha256": "9a82fdfcdb85041c75f0a9736ef3d46e4ec2ff57f71a80c48e19d69c0e027a43",
+      "newSha256": "db89e0f9e7dcef5ebcf0c493610892569eff7bf827fd07f3f93cbc968af99a70",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9640,
+        "new": 9643
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false,
+      "firstDiff": {
+        "offset": 3359,
+        "line": 142,
+        "legacy": "old_deg\": 7.02,\\n    \"threshold_setting_",
+        "new": "old_deg\": 7.27,\\n    \"threshold_setting_",
+        "at": 12
+      }
+    },
+    {
+      "id": "invalid-threshold-1-json",
+      "title": "invalid-threshold-1",
+      "verdict": "same",
+      "reason": "Identical, 2081 bytes.",
+      "legacyPath": "baseline/invalid-threshold-1.json",
+      "newPath": "canary/invalid-threshold-1.json",
+      "legacySha256": "0419e919b87f9c50c1d1b2c7d30612a48f4b534f2cf4a7cb7360791edad8e4f7",
+      "newSha256": "0419e919b87f9c50c1d1b2c7d30612a48f4b534f2cf4a7cb7360791edad8e4f7",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2081,
+        "new": 2081
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "invalid-threshold-2-json",
+      "title": "invalid-threshold-2",
+      "verdict": "same",
+      "reason": "Identical, 2080 bytes.",
+      "legacyPath": "baseline/invalid-threshold-2.json",
+      "newPath": "canary/invalid-threshold-2.json",
+      "legacySha256": "d152edd38dc7d80ce958c1644aa56b865f0c80c261cec929fab89f70d424d291",
+      "newSha256": "d152edd38dc7d80ce958c1644aa56b865f0c80c261cec929fab89f70d424d291",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2080,
+        "new": 2080
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "invalid-threshold-3-json",
+      "title": "invalid-threshold-3",
+      "verdict": "same",
+      "reason": "Identical, 2081 bytes.",
+      "legacyPath": "baseline/invalid-threshold-3.json",
+      "newPath": "canary/invalid-threshold-3.json",
+      "legacySha256": "f42047eb7d924d89c029c403cbe088b3fb9fd6539e43b02bf1e69e24024ca4ba",
+      "newSha256": "f42047eb7d924d89c029c403cbe088b3fb9fd6539e43b02bf1e69e24024ca4ba",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2081,
+        "new": 2081
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "invalid-threshold-4-json",
+      "title": "invalid-threshold-4",
+      "verdict": "same",
+      "reason": "Identical, 2170 bytes.",
+      "legacyPath": "baseline/invalid-threshold-4.json",
+      "newPath": "canary/invalid-threshold-4.json",
+      "legacySha256": "0d29bbd2aa4acc6b4d6c17a3f342b5d7fd4835318e5e15f235599cbafb87fdcf",
+      "newSha256": "0d29bbd2aa4acc6b4d6c17a3f342b5d7fd4835318e5e15f235599cbafb87fdcf",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2170,
+        "new": 2170
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "invalid-threshold-5-json",
+      "title": "invalid-threshold-5",
+      "verdict": "same",
+      "reason": "Identical, 2185 bytes.",
+      "legacyPath": "baseline/invalid-threshold-5.json",
+      "newPath": "canary/invalid-threshold-5.json",
+      "legacySha256": "33023c1690e1ec4817c80d6a376354fc23731d803512cc9180e9104245feeecb",
+      "newSha256": "33023c1690e1ec4817c80d6a376354fc23731d803512cc9180e9104245feeecb",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2185,
+        "new": 2185
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "invalid-threshold-6-json",
+      "title": "invalid-threshold-6",
+      "verdict": "same",
+      "reason": "Identical, 2088 bytes.",
+      "legacyPath": "baseline/invalid-threshold-6.json",
+      "newPath": "canary/invalid-threshold-6.json",
+      "legacySha256": "37691d176de404d8207c7a40cd7201ffac6f71f1e67360d3b19cdffa12839e06",
+      "newSha256": "37691d176de404d8207c7a40cd7201ffac6f71f1e67360d3b19cdffa12839e06",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2088,
+        "new": 2088
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    }
+  ]
+}

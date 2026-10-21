@@ -1,0 +1,554 @@
+{
+  "system": "ocutrain",
+  "generated": "2026-10-21T02:54:27Z",
+  "legacy": {
+    "label": "Working tree before anti-slop changes",
+    "command": "node analysis/ocutrain/equivalence/run.cjs .tools/anti-slop-baseline analysis/ocutrain/equivalence/baseline"
+  },
+  "new": {
+    "label": "Current working tree",
+    "command": "node analysis/ocutrain/equivalence/run.cjs . analysis/ocutrain/equivalence/current"
+  },
+  "selfCheck": {
+    "passed": true,
+    "detail": "each legacy output was compared with a copy changed by one byte and reported as different"
+  },
+  "totals": {
+    "cases": 24,
+    "executed": 24,
+    "same": 24,
+    "differs": 0,
+    "differsApproved": 0,
+    "missing": 0
+  },
+  "cases": [
+    {
+      "id": "fresh-01-csv",
+      "title": "fresh-01",
+      "verdict": "same",
+      "reason": "Identical, 3602 bytes.",
+      "legacyPath": "baseline/fresh-01.csv",
+      "newPath": "current/fresh-01.csv",
+      "legacySha256": "24a565e27f14b3effcfcbd0286bf21d268b52862575361e462f4ef242cfce19b",
+      "newSha256": "24a565e27f14b3effcfcbd0286bf21d268b52862575361e462f4ef242cfce19b",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3602,
+        "new": 3602
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-01-json",
+      "title": "fresh-01",
+      "verdict": "same",
+      "reason": "Identical, 7194 bytes.",
+      "legacyPath": "baseline/fresh-01.json",
+      "newPath": "current/fresh-01.json",
+      "legacySha256": "d6ed83561ef0fe7b248e8c8ace766b41cd4de54f08f3b2c8548c8d7e3a711e1d",
+      "newSha256": "d6ed83561ef0fe7b248e8c8ace766b41cd4de54f08f3b2c8548c8d7e3a711e1d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 7194,
+        "new": 7194
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-02-csv",
+      "title": "fresh-02",
+      "verdict": "same",
+      "reason": "Identical, 2111 bytes.",
+      "legacyPath": "baseline/fresh-02.csv",
+      "newPath": "current/fresh-02.csv",
+      "legacySha256": "8041841f07dfb67e2e367dcc6ac66cdd30dc5124ef1fe9d3c837b26937d1af60",
+      "newSha256": "8041841f07dfb67e2e367dcc6ac66cdd30dc5124ef1fe9d3c837b26937d1af60",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2111,
+        "new": 2111
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-02-json",
+      "title": "fresh-02",
+      "verdict": "same",
+      "reason": "Identical, 5145 bytes.",
+      "legacyPath": "baseline/fresh-02.json",
+      "newPath": "current/fresh-02.json",
+      "legacySha256": "ef42efdbbd674d2a6733efa0bbf044187f9a56b81fb34c944341dffdda38e209",
+      "newSha256": "ef42efdbbd674d2a6733efa0bbf044187f9a56b81fb34c944341dffdda38e209",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5145,
+        "new": 5145
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-03-csv",
+      "title": "fresh-03",
+      "verdict": "same",
+      "reason": "Identical, 4245 bytes.",
+      "legacyPath": "baseline/fresh-03.csv",
+      "newPath": "current/fresh-03.csv",
+      "legacySha256": "cea4209f7c2f42fe286a3e0d989d689f3391ce3906d3395234c9a25ac446bc1b",
+      "newSha256": "cea4209f7c2f42fe286a3e0d989d689f3391ce3906d3395234c9a25ac446bc1b",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4245,
+        "new": 4245
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-03-json",
+      "title": "fresh-03",
+      "verdict": "same",
+      "reason": "Identical, 11062 bytes.",
+      "legacyPath": "baseline/fresh-03.json",
+      "newPath": "current/fresh-03.json",
+      "legacySha256": "7e69e00826feecfe46163a68563a588613f9d6d5a0f217381d5183173dc6b113",
+      "newSha256": "7e69e00826feecfe46163a68563a588613f9d6d5a0f217381d5183173dc6b113",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 11062,
+        "new": 11062
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-04-csv",
+      "title": "fresh-04",
+      "verdict": "same",
+      "reason": "Identical, 3706 bytes.",
+      "legacyPath": "baseline/fresh-04.csv",
+      "newPath": "current/fresh-04.csv",
+      "legacySha256": "217702cbfd1be4e546dec2deddd5aa220969201cb55aee1dc07fbe9a425b15f2",
+      "newSha256": "217702cbfd1be4e546dec2deddd5aa220969201cb55aee1dc07fbe9a425b15f2",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3706,
+        "new": 3706
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-04-json",
+      "title": "fresh-04",
+      "verdict": "same",
+      "reason": "Identical, 7009 bytes.",
+      "legacyPath": "baseline/fresh-04.json",
+      "newPath": "current/fresh-04.json",
+      "legacySha256": "6e84560fd4fa47dffae164d5491deea30027cf2dac32bd16852f07c24a6136aa",
+      "newSha256": "6e84560fd4fa47dffae164d5491deea30027cf2dac32bd16852f07c24a6136aa",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 7009,
+        "new": 7009
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-05-csv",
+      "title": "fresh-05",
+      "verdict": "same",
+      "reason": "Identical, 2086 bytes.",
+      "legacyPath": "baseline/fresh-05.csv",
+      "newPath": "current/fresh-05.csv",
+      "legacySha256": "1b1eba2f74c90488821f7063c72faf0c8483a90141f68e78883b98279229443d",
+      "newSha256": "1b1eba2f74c90488821f7063c72faf0c8483a90141f68e78883b98279229443d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2086,
+        "new": 2086
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-05-json",
+      "title": "fresh-05",
+      "verdict": "same",
+      "reason": "Identical, 5360 bytes.",
+      "legacyPath": "baseline/fresh-05.json",
+      "newPath": "current/fresh-05.json",
+      "legacySha256": "981b282fa06804eec15db227d2e787005bca58051a990e3350bac408923128ae",
+      "newSha256": "981b282fa06804eec15db227d2e787005bca58051a990e3350bac408923128ae",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5360,
+        "new": 5360
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-06-csv",
+      "title": "fresh-06",
+      "verdict": "same",
+      "reason": "Identical, 3381 bytes.",
+      "legacyPath": "baseline/fresh-06.csv",
+      "newPath": "current/fresh-06.csv",
+      "legacySha256": "0e5eaa5309a8a779070af66a35a7b0983ef1c93d31373646aa406245270b9466",
+      "newSha256": "0e5eaa5309a8a779070af66a35a7b0983ef1c93d31373646aa406245270b9466",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3381,
+        "new": 3381
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-06-json",
+      "title": "fresh-06",
+      "verdict": "same",
+      "reason": "Identical, 9599 bytes.",
+      "legacyPath": "baseline/fresh-06.json",
+      "newPath": "current/fresh-06.json",
+      "legacySha256": "e5d08fa3eee05c9bf51040132e3eb837321db68229ccfda1e98a7dbf03c5b5be",
+      "newSha256": "e5d08fa3eee05c9bf51040132e3eb837321db68229ccfda1e98a7dbf03c5b5be",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9599,
+        "new": 9599
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-07-csv",
+      "title": "fresh-07",
+      "verdict": "same",
+      "reason": "Identical, 4562 bytes.",
+      "legacyPath": "baseline/fresh-07.csv",
+      "newPath": "current/fresh-07.csv",
+      "legacySha256": "3b84b2cd5fe0d37f3daf459ab992441d84af6c1cac1a1b100049412921ff42d0",
+      "newSha256": "3b84b2cd5fe0d37f3daf459ab992441d84af6c1cac1a1b100049412921ff42d0",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 4562,
+        "new": 4562
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-07-json",
+      "title": "fresh-07",
+      "verdict": "same",
+      "reason": "Identical, 8426 bytes.",
+      "legacyPath": "baseline/fresh-07.json",
+      "newPath": "current/fresh-07.json",
+      "legacySha256": "79dfeff52634f838859e52bfffb128496ceaf9a28481553fe50c7058836bb458",
+      "newSha256": "79dfeff52634f838859e52bfffb128496ceaf9a28481553fe50c7058836bb458",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 8426,
+        "new": 8426
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-08-csv",
+      "title": "fresh-08",
+      "verdict": "same",
+      "reason": "Identical, 2104 bytes.",
+      "legacyPath": "baseline/fresh-08.csv",
+      "newPath": "current/fresh-08.csv",
+      "legacySha256": "dd68b674b61ee08d64f0c0c66dff408072911312a4663dfff8791aeb276b6083",
+      "newSha256": "dd68b674b61ee08d64f0c0c66dff408072911312a4663dfff8791aeb276b6083",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2104,
+        "new": 2104
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-08-json",
+      "title": "fresh-08",
+      "verdict": "same",
+      "reason": "Identical, 5194 bytes.",
+      "legacyPath": "baseline/fresh-08.json",
+      "newPath": "current/fresh-08.json",
+      "legacySha256": "8fe8962fd86c3145ec19bc2be69a86baf8bcfa64981d0473bea69320426e4811",
+      "newSha256": "8fe8962fd86c3145ec19bc2be69a86baf8bcfa64981d0473bea69320426e4811",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 5194,
+        "new": 5194
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-09-csv",
+      "title": "fresh-09",
+      "verdict": "same",
+      "reason": "Identical, 3274 bytes.",
+      "legacyPath": "baseline/fresh-09.csv",
+      "newPath": "current/fresh-09.csv",
+      "legacySha256": "22a943fc320428a47d24bf5b9109a2eb56d452663c75fcbb69f9a5b143aed1d8",
+      "newSha256": "22a943fc320428a47d24bf5b9109a2eb56d452663c75fcbb69f9a5b143aed1d8",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3274,
+        "new": 3274
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-09-json",
+      "title": "fresh-09",
+      "verdict": "same",
+      "reason": "Identical, 9813 bytes.",
+      "legacyPath": "baseline/fresh-09.json",
+      "newPath": "current/fresh-09.json",
+      "legacySha256": "ddb4cf7ae183df35403c00500b7cabf7f9afba6ae970ab1a6ab85e736806b2bf",
+      "newSha256": "ddb4cf7ae183df35403c00500b7cabf7f9afba6ae970ab1a6ab85e736806b2bf",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9813,
+        "new": 9813
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-10-csv",
+      "title": "fresh-10",
+      "verdict": "same",
+      "reason": "Identical, 3711 bytes.",
+      "legacyPath": "baseline/fresh-10.csv",
+      "newPath": "current/fresh-10.csv",
+      "legacySha256": "193a24944229a6b8215bb9d641030094974650bab64facd0e82d01dd558a18ca",
+      "newSha256": "193a24944229a6b8215bb9d641030094974650bab64facd0e82d01dd558a18ca",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3711,
+        "new": 3711
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-10-json",
+      "title": "fresh-10",
+      "verdict": "same",
+      "reason": "Identical, 6950 bytes.",
+      "legacyPath": "baseline/fresh-10.json",
+      "newPath": "current/fresh-10.json",
+      "legacySha256": "25112ab39f4a0261d892a96bde91c92a9c85b30b70a0fa87be69c18c12de92d1",
+      "newSha256": "25112ab39f4a0261d892a96bde91c92a9c85b30b70a0fa87be69c18c12de92d1",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6950,
+        "new": 6950
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-11-csv",
+      "title": "fresh-11",
+      "verdict": "same",
+      "reason": "Identical, 2916 bytes.",
+      "legacyPath": "baseline/fresh-11.csv",
+      "newPath": "current/fresh-11.csv",
+      "legacySha256": "86c6fe225d537bb3df2a3d50a3d813d45058f7fc98776e4d65e07df04e062bf6",
+      "newSha256": "86c6fe225d537bb3df2a3d50a3d813d45058f7fc98776e4d65e07df04e062bf6",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 2916,
+        "new": 2916
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-11-json",
+      "title": "fresh-11",
+      "verdict": "same",
+      "reason": "Identical, 6619 bytes.",
+      "legacyPath": "baseline/fresh-11.json",
+      "newPath": "current/fresh-11.json",
+      "legacySha256": "3d91e8183b3acd2dcc321cd7fe86bfb17e5ca8e1b97cd89f31b7c5d220ca363d",
+      "newSha256": "3d91e8183b3acd2dcc321cd7fe86bfb17e5ca8e1b97cd89f31b7c5d220ca363d",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 6619,
+        "new": 6619
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-12-csv",
+      "title": "fresh-12",
+      "verdict": "same",
+      "reason": "Identical, 3374 bytes.",
+      "legacyPath": "baseline/fresh-12.csv",
+      "newPath": "current/fresh-12.csv",
+      "legacySha256": "101a5c87e05310b9bd856f2c56d5e8156bb9e0b473ff7e6cd3d094a6981e0261",
+      "newSha256": "101a5c87e05310b9bd856f2c56d5e8156bb9e0b473ff7e6cd3d094a6981e0261",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 3374,
+        "new": 3374
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    },
+    {
+      "id": "fresh-12-json",
+      "title": "fresh-12",
+      "verdict": "same",
+      "reason": "Identical, 9640 bytes.",
+      "legacyPath": "baseline/fresh-12.json",
+      "newPath": "current/fresh-12.json",
+      "legacySha256": "9a82fdfcdb85041c75f0a9736ef3d46e4ec2ff57f71a80c48e19d69c0e027a43",
+      "newSha256": "9a82fdfcdb85041c75f0a9736ef3d46e4ec2ff57f71a80c48e19d69c0e027a43",
+      "masked": [],
+      "approvedDifference": "",
+      "note": "",
+      "bytes": {
+        "legacy": 9640,
+        "new": 9640
+      },
+      "maskedBytes": {
+        "legacy": 0,
+        "new": 0
+      },
+      "empty": false
+    }
+  ]
+}
