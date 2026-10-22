@@ -39,8 +39,12 @@ test("Tauri subscribes once before status and carries the original SDK clock", a
   const gaze = { type: "gaze", deviceTimestampMicroseconds: 987654321000, x: .5, y: .5 };
   app.listeners.get("tobii-gaze")({ payload: gaze });
   assert.equal(app.messages[0], gaze);
+  const eyes = { type: "eyes", deviceTimestampMicroseconds: 987654321000,
+    left: { valid: true, originMm: [30, 0, 600] }, right: { valid: false, originMm: null } };
+  app.listeners.get("tobii-eyes")({ payload: eyes });
+  assert.equal(app.messages[1], eyes);
   assert.deepEqual(calls, ["get_status", "get_clock"]);
-  assert.equal(app.listeners.size, 2);
+  assert.equal(app.listeners.size, 3);
 });
 
 test("document saving awaits native completion and propagates a write failure", async () => {

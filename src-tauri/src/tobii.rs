@@ -17,6 +17,7 @@ use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 type Handle = *mut c_void;
 type UrlCallback = unsafe extern "C" fn(*const c_char, Handle);
 type GazeCallback = unsafe extern "C" fn(*const NativeGaze, Handle);
+type OriginCallback = unsafe extern "C" fn(*const NativeGazeOrigin, Handle);
 
 #[repr(C)]
 struct NativeGaze {
@@ -24,6 +25,16 @@ struct NativeGaze {
     validity: i32,
     x: f32,
     y: f32,
+}
+
+// tobii_gaze_origin_t: each eye's 3D position in millimetres. It carries no per-eye gaze direction.
+#[repr(C)]
+struct NativeGazeOrigin {
+    timestamp_us: i64,
+    left_validity: i32,
+    left_xyz: [f32; 3],
+    right_validity: i32,
+    right_xyz: [f32; 3],
 }
 
 // The library stays loaded until all callbacks and native handles have been released.
@@ -35,6 +46,8 @@ struct Sdk {
     device_destroy: unsafe extern "C" fn(Handle) -> i32,
     subscribe: unsafe extern "C" fn(Handle, GazeCallback, Handle) -> i32,
     unsubscribe: unsafe extern "C" fn(Handle) -> i32,
+    origin_subscribe: unsafe extern "C" fn(Handle, OriginCallback, Handle) -> i32,
+    origin_unsubscribe: unsafe extern "C" fn(Handle) -> i32,
     wait: unsafe extern "C" fn(i32, *const Handle) -> i32,
     process: unsafe extern "C" fn(Handle) -> i32,
     clock: unsafe extern "C" fn(Handle, *mut i64) -> i32,
@@ -60,6 +73,8 @@ impl Sdk {
             device_destroy: symbol!("tobii_device_destroy"),
             subscribe: symbol!("tobii_gaze_point_subscribe"),
             unsubscribe: symbol!("tobii_gaze_point_unsubscribe"),
+            origin_subscribe: symbol!("tobii_gaze_origin_subscribe"),
+            origin_unsubscribe: symbol!("tobii_gaze_origin_unsubscribe"),
             wait: symbol!("tobii_wait_for_callbacks"),
             process: symbol!("tobii_device_process_callbacks"),
             clock: symbol!("tobii_system_clock"),
@@ -74,12 +89,16 @@ struct Connection<'a> {
     api: Handle,
     device: Handle,
     subscribed: bool,
+    origin_subscribed: bool,
 }
 
 impl Drop for Connection<'_> {
     fn drop(&mut self) {
         // Only the worker uses these handles, including system_clock and cleanup.
         unsafe {
+            if self.origin_subscribed {
+                (self.sdk.origin_unsubscribe)(self.device);
+            }
             if self.subscribed {
                 (self.sdk.unsubscribe)(self.device);
             }
@@ -135,10 +154,15 @@ pub struct Status {
     coordinate_space: &'static str,
     provider_mode: &'static str,
     last_error: Option<String>,
+    eye_position_error: Option<String>,
 }
 
 impl Status {
-    fn new(connected: bool, last_error: Option<String>) -> Self {
+    fn new(
+        connected: bool,
+        last_error: Option<String>,
+        eye_position_error: Option<String>,
+    ) -> Self {
         Self {
             r#type: "status",
             connected,
@@ -147,6 +171,7 @@ impl Status {
             coordinate_space: "screen_normalized",
             provider_mode: "tauri",
             last_error,
+            eye_position_error,
         }
     }
 }
@@ -163,6 +188,32 @@ struct Gaze {
     coordinate_space: &'static str,
     #[serde(flatten)]
     geometry: Geometry,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Eye {
+    valid: bool,
+    origin_mm: Option<[f32; 3]>,
+}
+
+impl Eye {
+    fn new(validity: i32, xyz: [f32; 3]) -> Self {
+        let valid = validity == 1 && xyz.iter().all(|value| value.is_finite());
+        Self {
+            valid,
+            origin_mm: valid.then_some(xyz),
+        }
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EyePositions {
+    r#type: &'static str,
+    device_timestamp_microseconds: i64,
+    left: Eye,
+    right: Eye,
 }
 
 struct CallbackContext {
@@ -202,6 +253,22 @@ unsafe extern "C" fn receive_gaze(sample: *const NativeGaze, context: Handle) {
     let _ = context.app.emit_to("main", "tobii-gaze", payload);
 }
 
+unsafe extern "C" fn receive_eye_positions(sample: *const NativeGazeOrigin, context: Handle) {
+    let (Some(sample), Some(context)) = (
+        sample.as_ref(),
+        (context as *const CallbackContext).as_ref(),
+    ) else {
+        return;
+    };
+    let payload = EyePositions {
+        r#type: "eyes",
+        device_timestamp_microseconds: sample.timestamp_us,
+        left: Eye::new(sample.left_validity, sample.left_xyz),
+        right: Eye::new(sample.right_validity, sample.right_xyz),
+    };
+    let _ = context.app.emit_to("main", "tobii-eyes", payload);
+}
+
 type ClockRequest = mpsc::SyncSender<Result<i64, String>>;
 
 pub struct Tracker {
@@ -219,6 +286,7 @@ impl Tracker {
             status: Arc::new(Mutex::new(Status::new(
                 false,
                 Some("Connecting to Tobii…".into()),
+                None,
             ))),
             geometry: Arc::new(Mutex::new(Geometry::default())),
             running: Arc::new(AtomicBool::new(true)),
@@ -232,15 +300,15 @@ impl Tracker {
         let geometry = Arc::clone(&tracker.geometry);
         let running = Arc::clone(&tracker.running);
         let worker = thread::spawn(move || {
-            let set_status = |connected, error| {
-                let value = Status::new(connected, error);
+            let set_status = |connected, error, eye_error| {
+                let value = Status::new(connected, error, eye_error);
                 if let Ok(mut current) = status.lock() {
                     *current = value.clone();
                 }
                 let _ = app.emit_to("main", "tobii-status", value);
             };
             let result = run_stream(&app, geometry, &running, receiver, &set_status);
-            set_status(false, result.err());
+            set_status(false, result.err(), None);
         });
         *tracker.worker.lock().unwrap() = Some(worker);
         tracker
@@ -296,7 +364,7 @@ fn run_stream(
     geometry: Arc<Mutex<Geometry>>,
     running: &AtomicBool,
     requests: mpsc::Receiver<ClockRequest>,
-    set_status: &impl Fn(bool, Option<String>),
+    set_status: &impl Fn(bool, Option<String>, Option<String>),
 ) -> Result<(), String> {
     let directory = app
         .path()
@@ -314,11 +382,13 @@ fn run_stream(
         app: app.clone(),
         geometry,
     });
+    let context = callback.as_mut() as *mut CallbackContext as Handle;
     let mut connection = Connection {
         sdk: &sdk,
         api: ptr::null_mut(),
         device: ptr::null_mut(),
         subscribed: false,
+        origin_subscribed: false,
     };
     unsafe {
         check(
@@ -345,15 +415,14 @@ fn run_stream(
         }
         check((sdk.timesync)(connection.device), "clock synchronization")?;
         check(
-            (sdk.subscribe)(
-                connection.device,
-                receive_gaze,
-                callback.as_mut() as *mut _ as Handle,
-            ),
+            (sdk.subscribe)(connection.device, receive_gaze, context),
             "gaze subscription",
         )?;
         connection.subscribed = true;
-        set_status(true, None);
+        // Per-eye positions are optional; the combined gaze stream keeps running without them.
+        let code = (sdk.origin_subscribe)(connection.device, receive_eye_positions, context);
+        connection.origin_subscribed = code == 0;
+        set_status(true, None, check(code, "per-eye position subscription").err());
         let mut last_sync = Instant::now();
         while running.load(Ordering::Acquire) {
             for response in requests.try_iter() {
@@ -389,6 +458,24 @@ mod tests {
         assert_eq!(std::mem::offset_of!(NativeGaze, validity), 8);
         assert_eq!(std::mem::offset_of!(NativeGaze, x), 12);
         assert_eq!(std::mem::offset_of!(NativeGaze, y), 16);
+    }
+    #[test]
+    fn native_gaze_origin_matches_the_sdk_abi() {
+        assert_eq!(std::mem::size_of::<NativeGazeOrigin>(), 40);
+        assert_eq!(std::mem::align_of::<NativeGazeOrigin>(), 8);
+        assert_eq!(std::mem::offset_of!(NativeGazeOrigin, left_validity), 8);
+        assert_eq!(std::mem::offset_of!(NativeGazeOrigin, left_xyz), 12);
+        assert_eq!(std::mem::offset_of!(NativeGazeOrigin, right_validity), 24);
+        assert_eq!(std::mem::offset_of!(NativeGazeOrigin, right_xyz), 28);
+    }
+    #[test]
+    fn eye_positions_require_sdk_validity_and_finite_coordinates() {
+        assert_eq!(
+            Eye::new(1, [-31.5, 2.0, 600.0]).origin_mm,
+            Some([-31.5, 2.0, 600.0])
+        );
+        assert!(Eye::new(0, [-31.5, 2.0, 600.0]).origin_mm.is_none());
+        assert!(!Eye::new(1, [f32::NAN, 2.0, 600.0]).valid);
     }
     #[test]
     fn geometry_uses_physical_pixels_and_negative_monitor_origins() {

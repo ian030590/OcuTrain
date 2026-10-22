@@ -11,6 +11,7 @@
   };
   const ready = Promise.all([
     tauri.event.listen("tobii-gaze", event => forward(event.payload)),
+    tauri.event.listen("tobii-eyes", event => forward(event.payload)),
     tauri.event.listen("tobii-status", event => forward(event.payload))
   ]);
   // Register synchronously, before app.js captures its bridge reference.

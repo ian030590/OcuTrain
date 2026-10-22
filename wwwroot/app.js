@@ -219,6 +219,49 @@
       window.jsPsychWebgazerInitCamera &&
       window.jsPsychWebgazerCalibrate
     );
+    // Columns use the subject's eyes: right_* is OD, left_* is OS.
+    const EYES = ["right", "left"];
+    // Under half the Tobii Eye Tracker 5 frame interval (~7.5 ms), so an eye sample cannot pair with a neighbouring frame.
+    const TOBII_EYE_MATCH_TOLERANCE_US = 3000;
+
+    // WebGazer's ridge model reads both eye patches as one feature vector. Giving it the same patch
+    // twice makes a single-eye model, trained by the same calibration clicks as the binocular one.
+    class MonocularRidge {
+      constructor(webgazer, imageSide, eye) {
+        this.imageSide = imageSide;
+        this.eye = eye;
+        this.ridge = new webgazer.reg.RidgeReg();
+      }
+      only(eyes) { return eyes && { left: eyes[this.imageSide], right: eyes[this.imageSide] }; }
+      init() { this.ridge.init(); }
+      addData(eyes, screenPos, type) { this.ridge.addData(this.only(eyes), screenPos, type); }
+      predict(eyes) { return this.ridge.predict(this.only(eyes)); }
+      setData(data) { this.ridge.setData(data.map(item => ({ ...item, eyes: this.only(item.eyes) }))); }
+      getData() { return this.ridge.getData(); }
+    }
+
+    function installMonocularWebGazerModels(webgazer) {
+      // The analysed camera frame is not mirrored, so WebGazer's "left" patch is the subject's right eye.
+      for (const [imageSide, eye] of [["left", "right"], ["right", "left"]]) {
+        const name = `ocutrain-${eye}-eye-ridge`;
+        webgazer.addRegressionModule(name, MonocularRidge.bind(null, webgazer, imageSide, eye));
+        webgazer.addRegression(name);
+      }
+    }
+
+    function webgazerEyePredictions(raw) {
+      const models = window.webgazer?.getRegression?.() || [];
+      if (!models.some(model => model instanceof MonocularRidge)) return null;
+      const eyes = {};
+      for (const eye of EYES) {
+        const point = raw?.all?.[models.findIndex(model => model instanceof MonocularRidge && model.eye === eye)];
+        const valid = Boolean(point) && Number.isFinite(point.x) && Number.isFinite(point.y);
+        eyes[eye] = { valid, x: valid ? point.x : null, y: valid ? point.y : null };
+      }
+      return eyes;
+    }
+
+    if (WEBGAZER_COMPONENTS_AVAILABLE) installMonocularWebGazerModels(window.webgazer);
     const bridgeQuery = new URLSearchParams(window.location.search);
     const bridgeHash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const bridgeToken = bridgeQuery.get("bridgeToken") || bridgeHash.get("bridge_token") || "";
@@ -395,11 +438,13 @@
         validated: false,
         needsRevalidation: false,
         lastError: null,
+        eyePositionError: null,
         lastMessageAt: null,
         receivedSamples: 0,
         validSamples: 0,
         lastGazeAt: null,
         lastValidGazeAt: null,
+        lastGaze: null,
         socket: null,
         connectPromise: null,
         injectedClientBound: false,
@@ -535,6 +580,57 @@
       const dxCm = dxPx * calibration.screenWidthCm / screenPixels.width;
       const dyCm = dyPx * calibration.screenHeightCm / screenPixels.height;
       return visualAngleArcmin(Math.hypot(dxCm, dyCm), calibration.viewingDistanceCm) / 60;
+    }
+
+    const BINOCULAR_COLUMNS = [
+      "stimulus_h_deg", "stimulus_v_deg",
+      ...EYES.flatMap(eye => [`${eye}_eye_valid`, `${eye}_gaze_x_px`, `${eye}_gaze_y_px`, `${eye}_error_deg`]),
+      "eye_disparity_h_deg", "eye_disparity_v_deg", "eye_disparity_deg",
+      ...EYES.flatMap(eye => ["x", "y", "z"].map(axis => `${eye}_eye_origin_${axis}_mm`))
+    ];
+
+    function binocularCsvValues(record, calibration, screenPixels, viewport) {
+      const angle = (offsetPx, cmPerPx) =>
+        round(Math.atan(offsetPx * cmPerPx / calibration.viewingDistanceCm) * 180 / Math.PI, 3);
+      const fields = {
+        stimulus_h_deg: angle(record.stimulus_x_px - viewport.width / 2, calibration.screenWidthCm / screenPixels.width),
+        stimulus_v_deg: angle(viewport.height / 2 - record.stimulus_y_px, calibration.screenHeightCm / screenPixels.height)
+      };
+      const gaze = {};
+      for (const side of EYES) {
+        const eye = record.eyes?.[side];
+        const point = eye?.valid && Number.isFinite(eye.x) && Number.isFinite(eye.y) ? eye : null;
+        const origin = eye?.valid ? eye.origin_mm : null;
+        gaze[side] = point;
+        fields[`${side}_eye_valid`] = eye ? (eye.valid ? 1 : 0) : "";
+        fields[`${side}_gaze_x_px`] = point ? round(point.x, 2) : "";
+        fields[`${side}_gaze_y_px`] = point ? round(point.y, 2) : "";
+        fields[`${side}_error_deg`] = point
+          ? round(gazeErrorDegrees(point.x - record.stimulus_x_px, point.y - record.stimulus_y_px, calibration, screenPixels), 3) : "";
+        ["x", "y", "z"].forEach((axis, index) => { fields[`${side}_eye_origin_${axis}_mm`] = origin ? origin[index] : ""; });
+      }
+      const { right, left } = gaze;
+      // Left minus right: + horizontal means the left eye's point is right of the right eye's (crossed); + vertical means above.
+      const dx = right && left ? left.x - right.x : null;
+      const dy = right && left ? right.y - left.y : null;
+      fields.eye_disparity_h_deg = dx === null ? "" : round(Math.sign(dx) * gazeErrorDegrees(dx, 0, calibration, screenPixels), 3);
+      fields.eye_disparity_v_deg = dy === null ? "" : round(Math.sign(dy) * gazeErrorDegrees(0, dy, calibration, screenPixels), 3);
+      fields.eye_disparity_deg = dx === null ? "" : round(gazeErrorDegrees(dx, dy, calibration, screenPixels), 3);
+      return BINOCULAR_COLUMNS.map(column => fields[column]);
+    }
+
+    function nearestEyeSample(eyeSamples, timestampUs) {
+      if (!Number.isFinite(timestampUs)) return null;
+      let low = 0;
+      let high = eyeSamples.length;
+      while (low < high) {
+        const mid = (low + high) >> 1;
+        if (eyeSamples[mid].device_timestamp_us < timestampUs) low = mid + 1;
+        else high = mid;
+      }
+      const best = [eyeSamples[low - 1], eyeSamples[low]].filter(Boolean)
+        .sort((a, b) => Math.abs(a.device_timestamp_us - timestampUs) - Math.abs(b.device_timestamp_us - timestampUs))[0];
+      return best && Math.abs(best.device_timestamp_us - timestampUs) <= TOBII_EYE_MATCH_TOLERANCE_US ? best : null;
     }
 
     function gazeThresholds(source, settings, validation = AppState.eyeTracking.lastValidation) {
@@ -709,7 +805,12 @@
       if (AppState.tobii.connected) {
         const provider = AppState.tobii.provider || "eye tracker";
         const simulator = AppState.tobii.providerMode === "simulator" ? " (simulated data)" : "";
-        return `Connected to ${provider}${simulator}. Received: ${AppState.tobii.receivedSamples} samples; valid: ${AppState.tobii.validSamples}.`;
+        const counts = `Connected to ${provider}${simulator}. Received: ${AppState.tobii.receivedSamples} samples; valid: ${AppState.tobii.validSamples}.`;
+        if (!AppState.tobii.receivedSamples) return `${counts} Waiting for gaze data.`;
+        const gaze = AppState.tobii.lastGaze;
+        const eyeNote = AppState.tobii.eyePositionError ? ` Per-eye positions unavailable: ${AppState.tobii.eyePositionError}` : "";
+        if (!gaze?.valid) return `${counts} Data is arriving, but Tobii reports no valid gaze. Check eye detection and display alignment in Tobii Experience.${eyeNote}`;
+        return `${counts} Gaze position: ${formatNumber(gaze.x * 100, 1)}% horizontal, ${formatNumber(gaze.y * 100, 1)}% vertical.${eyeNote}`;
       }
       if (AppState.tobii.lastError) return `Tobii Bridge: ${AppState.tobii.lastError}`;
       return "Tobii Bridge is not connected.";
@@ -855,6 +956,21 @@
       }
     }
 
+    function recordTobiiEyePositions(payload) {
+      const active = AppState.tobii.activeTrial;
+      const timestamp = optionalNumber(bridgeField(payload, "deviceTimestampMicroseconds", "device_timestamp_microseconds"));
+      if (!active || timestamp === null || active.eyeSamples.length >= MAX_GAZE_SAMPLES_PER_TRIAL) return;
+      const last = active.eyeSamples[active.eyeSamples.length - 1];
+      // Matching by timestamp relies on this list staying sorted.
+      if (last && timestamp <= last.device_timestamp_us) return;
+      const eye = side => {
+        const origin = bridgeField(payload[side] || {}, "originMm", "origin_mm");
+        const valid = payload[side]?.valid === true && Array.isArray(origin) && origin.length === 3 && origin.every(Number.isFinite);
+        return { valid, origin_mm: valid ? origin.map(value => round(value, 3)) : null };
+      };
+      active.eyeSamples.push({ device_timestamp_us: timestamp, eyes: { right: eye("right"), left: eye("left") } });
+    }
+
     function handleTobiiPayload(payload) {
       if (!payload || typeof payload !== "object") return;
       AppState.tobii.lastMessageAt = new Date().toISOString();
@@ -874,7 +990,12 @@
           ? (bridgeField(provider, "providerId", "provider_id") || null)
           : (bridgeField(payload, "providerMode", "provider_mode") || (payload.simulated === true ? "simulator" : payload.simulated === false ? "native" : provider || null));
         AppState.tobii.coordinateSpace = bridgeField(payload, "coordinateSpace", "coordinate_space") || null;
+        AppState.tobii.eyePositionError = bridgeField(payload, "eyePositionError", "eye_position_error") || null;
         refreshTobiiStatus();
+        return;
+      }
+      if (payload.type === "eyes") {
+        recordTobiiEyePositions(payload);
         return;
       }
       if (payload.type === "authenticated") {
@@ -884,7 +1005,9 @@
       if (payload.type === "gaze") {
         AppState.tobii.receivedSamples += 1;
         AppState.tobii.lastGazeAt = performance.now();
-        if (payload.valid !== false && optionalNumber(payload.x) !== null && optionalNumber(payload.y) !== null) {
+        const valid = payload.valid !== false && optionalNumber(payload.x) !== null && optionalNumber(payload.y) !== null;
+        AppState.tobii.lastGaze = { x: optionalNumber(payload.x), y: optionalNumber(payload.y), valid };
+        if (valid) {
           AppState.tobii.validSamples += 1;
           AppState.tobii.lastValidGazeAt = AppState.tobii.lastGazeAt;
         }
@@ -897,11 +1020,18 @@
     window.handleNativeTobiiMessage = handleTobiiPayload;
 
     function refreshTobiiStatus() {
+      const initialStatus = document.querySelector("#initial-tobii-status");
+      if (initialStatus) {
+        initialStatus.hidden = document.querySelector("#initial-eye-tracking-source")?.value !== EYE_SOURCE_TOBII;
+        if (!initialStatus.hidden) initialStatus.textContent = tobiiStatusText();
+      }
       if (AppState.eyeTracking.source !== EYE_SOURCE_TOBII) return;
       const button = document.querySelector("[data-open-eye-tracking]");
       if (button) button.textContent = eyeTrackingStatusText();
       const output = document.querySelector("#eye-tracking-status");
       if (output && document.querySelector("#eye-tracking-source")?.value === EYE_SOURCE_TOBII) output.textContent = tobiiStatusText();
+      const liveStatus = document.querySelector("#tobii-live-status");
+      if (liveStatus) { liveStatus.hidden = false; liveStatus.textContent = tobiiStatusText(); }
     }
 
     function handleTobiiBridgeMessage(event) {
@@ -1094,6 +1224,7 @@
         missingDurationMs: 0,
         rejectedTimestampSamples: 0,
         synchronousRecords: [],
+        eyeSamples: [],
         onSample: null
       };
       return AppState.tobii.activeTrial;
@@ -1108,11 +1239,24 @@
       const validMs = active.totalValidMs || 0;
       const inThreshMs = active.totalInThreshMs || 0;
       const accRate = validMs > 0 ? round((inThreshMs / validMs) * 100, 2) : null;
+      // Per-eye positions arrive as a separate SDK stream on the same device clock.
+      for (const item of [...active.samples, ...active.synchronousRecords]) {
+        const match = nearestEyeSample(active.eyeSamples, item.device_timestamp_us);
+        if (match) item.eyes = match.eyes;
+      }
       return {
         samples: active.samples,
         downsampled: active.downsampled,
         overflow: active.overflow,
         synchronousRecords: active.synchronousRecords || [],
+        perEye: {
+          source: "tobii_gaze_origin",
+          gaze_points_available: false,
+          eye_sample_count: active.eyeSamples.length,
+          matched_records: active.synchronousRecords.filter(record => record.eyes).length,
+          total_records: active.synchronousRecords.length,
+          stream_error: AppState.tobii.eyePositionError
+        },
         totalBlinkMs: round(active.totalBlinkMs || 0, 2),
         totalValidMs: round(validMs, 2),
         totalInThreshMs: round(inThreshMs, 2),
@@ -1157,6 +1301,12 @@
         downsampled: active.downsampled,
         overflow: active.overflow,
         synchronousRecords: active.synchronousRecords || [],
+        perEye: {
+          source: "webgazer_single_eye_ridge",
+          gaze_points_available: true,
+          matched_records: active.synchronousRecords.filter(record => record.eyes).length,
+          total_records: active.synchronousRecords.length
+        },
         totalBlinkMs: round(active.totalBlinkMs || 0, 2),
         totalValidMs: round(validMs, 2),
         totalInThreshMs: round(inThreshMs, 2),
@@ -1293,6 +1443,7 @@
                         <option value="tobii" ${AppState.tobii.configured ? "" : "disabled"}>Tobii Eye Tracker Bridge</option>
                       </select>
                     </div>
+                    <p id="initial-tobii-status" class="option-note" hidden></p>
                     <p class="option-note">WebGazer uses camera positioning and nine-point calibration. Tobii uses hardware tracking configured in Tobii Experience. Both feature a 5-point validation step that dynamically calibrates the hit threshold.</p>
                     <label class="option-row" for="initial-tobii-calibrated">
                       <input id="initial-tobii-calibrated" name="tobiiCalibrated" type="checkbox" disabled>
@@ -1341,7 +1492,11 @@
           initialTobiiCalibrated.disabled = !tobiiSelected;
           if (!tobiiSelected) initialTobiiCalibrated.checked = false;
         };
-        initialEyeSource.addEventListener("change", syncInitialEyeSource);
+        initialEyeSource.addEventListener("change", async () => {
+          syncInitialEyeSource();
+          if (initialEyeSource.value === EYE_SOURCE_TOBII) await connectTobiiBridge();
+          refreshTobiiStatus();
+        });
         syncInitialEyeSource();
         bindCalibrationPreview(form, output);
 
@@ -2071,6 +2226,7 @@
               </div>
               ${subjectIdBar(subjectId)}
               ${calibrationStrip(AppState.calibration)}
+              <p id="tobii-live-status" class="option-note" ${AppState.eyeTracking.source === EYE_SOURCE_TOBII ? "" : "hidden"}>${escapeHtml(tobiiStatusText())}</p>
               ${sessionBanner(AppState.lastSession)}
               <div class="module-grid">${moduleCards()}</div>
             </div>
@@ -2239,6 +2395,9 @@
             );
           }
           displayElement.querySelector("[data-open-eye-tracking]").textContent = eyeTrackingStatusText();
+          const liveStatus = displayElement.querySelector("#tobii-live-status");
+          liveStatus.hidden = source !== EYE_SOURCE_TOBII;
+          if (!liveStatus.hidden) liveStatus.textContent = tobiiStatusText();
           closeDialog(eyeTrackingDialog);
         });
 
@@ -3093,20 +3252,33 @@
           <div class="app-shell diplopia-shell">
             <h1 id="diplopia-title" tabindex="-1">複視位置問卷</h1>
             <p class="lede">${MODULES[session.module].code} 已完成 · 受試者：${escapeHtml(session.subject_id)} · 累計第 ${session.diplopia_schedule.completed_practice_count} 次練習</p>
-            <p id="diplopia-instructions">請分別標示八個方向開始出現複視的位置。可點選圖中的方向線，或輸入位置百分比；沒有複視，請在該方向勾選「× 無複視」。</p>
+            <p id="diplopia-instructions">請分別標示八個方向開始出現複視的位置。可開啟全螢幕沿方向線拖曳、移動滑桿，或輸入位置百分比；沒有複視，請勾選「× 無複視」。</p>
             <p class="field-hint">中心為 0%，該方向螢幕邊緣為 100%。系統依螢幕尺寸及觀看距離換算複視角度，所有八個方向都需填答。</p>
             <form id="diplopia-form" novalidate aria-describedby="diplopia-instructions">
               <div class="diplopia-layout">
-                <figure class="diplopia-figure">
+                <figure id="diplopia-figure" class="diplopia-figure">
                   <svg id="diplopia-chart" viewBox="0 0 480 480" role="img" aria-label="八方向複視位置圖，亦可使用各方向的輸入欄位填答">
-                    ${[0.25, 0.5, 0.75, 1].map(fraction => `<rect x="${240 - 190 * fraction}" y="${240 - 190 * fraction}" width="${380 * fraction}" height="${380 * fraction}" class="diplopia-guide" />`).join("")}
-                    ${DIPLOPIA_DIRECTIONS.map(dir => `
-                      <line x1="240" y1="240" x2="${240 + dir.x * 190}" y2="${240 + dir.y * 190}" class="diplopia-ray" />
-                      <text x="${240 + dir.x * 220}" y="${240 + dir.y * 220}" class="diplopia-direction-label">${dir.label}</text>
-                      <g data-diplopia-marker="${dir.key}"></g>`).join("")}
-                    <circle cx="240" cy="240" r="4" fill="currentColor" />
+                    <g id="diplopia-background"></g>
+                    ${DIPLOPIA_DIRECTIONS.map(dir => `<g data-diplopia-marker="${dir.key}"></g>`).join("")}
                   </svg>
                   <figcaption>● 複視起點　× 無複視</figcaption>
+                  <button id="diplopia-open-picker" class="secondary-button" type="button">全螢幕拖曳標記</button>
+                  <button id="diplopia-toggle-controls" class="secondary-button diplopia-toggle-controls" type="button" hidden aria-expanded="true">隱藏操作列</button>
+                  <div id="diplopia-picker-controls" class="diplopia-picker-controls" hidden>
+                    <p>沿方向線拖曳圓點，找出開始複視的位置。</p>
+                    <div class="diplopia-picker-row">
+                      <label for="diplopia-picker-direction">方向</label>
+                      <select id="diplopia-picker-direction">${DIPLOPIA_DIRECTIONS.map(dir => `<option value="${dir.key}">${dir.label}</option>`).join("")}</select>
+                      <output id="diplopia-picker-value" aria-live="polite">尚未標記</output>
+                    </div>
+                    <label class="sr-only" for="diplopia-picker-slider">所選方向的複視起點（%）</label>
+                    <input id="diplopia-picker-slider" type="range" min="0" max="100" step="0.1" value="0" />
+                    <div class="diplopia-picker-row">
+                      <label class="diplopia-none" for="diplopia-picker-none"><input id="diplopia-picker-none" type="checkbox" /> 本方向無複視</label>
+                      <span id="diplopia-picker-progress" role="status">0 / 8</span>
+                      <button id="diplopia-marking-done" class="secondary-button" type="button">檢查八方向答案</button>
+                    </div>
+                  </div>
                 </figure>
                 <div class="diplopia-fields">
                   ${DIPLOPIA_DIRECTIONS.map(dir => `
@@ -3125,7 +3297,7 @@
                 </div>
               </div>
               <p id="diplopia-error" class="form-error" role="alert"></p>
-              <div class="form-actions">
+              <div class="form-actions diplopia-submit-actions">
                 <p id="diplopia-progress" role="status">已填答 0 / 8 個方向</p>
                 <button class="primary-button" type="submit">送出問卷並返回選單</button>
               </div>
@@ -3136,6 +3308,14 @@
       const form = displayElement.querySelector("#diplopia-form");
       const chart = displayElement.querySelector("#diplopia-chart");
       const error = displayElement.querySelector("#diplopia-error");
+      const figure = displayElement.querySelector("#diplopia-figure");
+      const background = displayElement.querySelector("#diplopia-background");
+      const controls = displayElement.querySelector("#diplopia-picker-controls");
+      const openButton = displayElement.querySelector("#diplopia-open-picker");
+      const directionInput = displayElement.querySelector("#diplopia-picker-direction");
+      const slider = displayElement.querySelector("#diplopia-picker-slider");
+      const pickerNone = displayElement.querySelector("#diplopia-picker-none");
+      const toggleControls = displayElement.querySelector("#diplopia-toggle-controls");
       const fields = DIPLOPIA_DIRECTIONS.map(dir => ({
         ...dir,
         input: form.querySelector(`#diplopia-${dir.key}`),
@@ -3143,6 +3323,10 @@
         angle: form.querySelector(`#diplopia-angle-${dir.key}`),
         marker: chart.querySelector(`[data-diplopia-marker="${dir.key}"]`)
       }));
+      let pickerOpen = false;
+      let selected = fields[0];
+      let drag = null;
+      let chartGeometry = { width: 480, height: 480, cx: 240, cy: 240, rx: 190, ry: 190 };
       const hasPosition = field => field.input.value.trim() !== "" && Number.isFinite(Number(field.input.value))
         && Number(field.input.value) >= 0 && Number(field.input.value) <= 100;
       const update = () => {
@@ -3152,8 +3336,8 @@
           const valid = hasPosition(field);
           if (field.none.checked || valid) answered++;
           const fraction = field.none.checked ? 1 : Number(field.input.value) / 100;
-          const x = 240 + field.x * 190 * fraction;
-          const y = 240 + field.y * 190 * fraction;
+          const x = Math.max(7, Math.min(chartGeometry.width - 7, chartGeometry.cx + field.x * chartGeometry.rx * fraction));
+          const y = Math.max(7, Math.min(chartGeometry.height - 7, chartGeometry.cy + field.y * chartGeometry.ry * fraction));
           field.marker.innerHTML = field.none.checked
             ? `<path d="M ${x - 6} ${y - 6} l 12 12 M ${x + 6} ${y - 6} l -12 12" class="diplopia-mark" />`
             : valid ? `<circle cx="${x}" cy="${y}" r="6" fill="currentColor" />` : "";
@@ -3161,8 +3345,71 @@
             : valid ? `複視起點 ${formatNumber(diplopiaAngleDeg(field, Number(field.input.value), session), 2)}°` : "尚未標記";
         });
         displayElement.querySelector("#diplopia-progress").textContent = `已填答 ${answered} / 8 個方向`;
+        displayElement.querySelector("#diplopia-picker-progress").textContent = `${answered} / 8`;
+        directionInput.value = selected.key;
+        slider.value = hasPosition(selected) ? selected.input.value : "0";
+        slider.disabled = selected.none.checked;
+        pickerNone.checked = selected.none.checked;
+        displayElement.querySelector("#diplopia-picker-value").textContent = selected.none.checked ? "× 無複視"
+          : hasPosition(selected) ? `${selected.input.value}% · ${selected.angle.textContent}` : "尚未標記";
         setError(error, "");
       };
+      const renderChart = () => {
+        chartGeometry = pickerOpen
+          ? { width: window.innerWidth, height: window.innerHeight, cx: window.innerWidth / 2, cy: window.innerHeight / 2, rx: window.innerWidth / 2, ry: window.innerHeight / 2 }
+          : { width: 480, height: 480, cx: 240, cy: 240, rx: 190, ry: 190 };
+        const { width, height, cx, cy, rx, ry } = chartGeometry;
+        chart.setAttribute("viewBox", `0 0 ${width} ${height}`);
+        background.innerHTML = [0.25, 0.5, 0.75, 1].map(fraction => `<rect x="${cx - rx * fraction}" y="${cy - ry * fraction}" width="${rx * 2 * fraction}" height="${ry * 2 * fraction}" class="diplopia-guide" />`).join("")
+          + fields.map(dir => `<line x1="${cx}" y1="${cy}" x2="${cx + dir.x * rx}" y2="${cy + dir.y * ry}" class="diplopia-ray" />
+              <text x="${cx + dir.x * (pickerOpen ? Math.max(0, rx - 24) : 220)}" y="${cy + dir.y * (pickerOpen ? Math.max(0, ry - 24) : 220)}" class="diplopia-direction-label">${dir.label}</text>`).join("")
+          + `<circle cx="${cx}" cy="${cy}" r="4" fill="currentColor" />`;
+        update();
+      };
+      const setPickerOpen = open => {
+        pickerOpen = open;
+        figure.classList.toggle("is-fullscreen-picker", open);
+        controls.hidden = !open;
+        toggleControls.hidden = !open;
+        toggleControls.textContent = "隱藏操作列";
+        toggleControls.setAttribute("aria-expanded", String(open));
+        openButton.hidden = open;
+        displayElement.querySelector(".diplopia-fields").inert = open;
+        displayElement.querySelector(".diplopia-submit-actions").inert = open;
+        renderChart();
+        if (open) directionInput.focus({ preventScroll: true });
+      };
+      toggleControls.addEventListener("click", () => {
+        controls.hidden = !controls.hidden;
+        toggleControls.textContent = controls.hidden ? "顯示操作列" : "隱藏操作列";
+        toggleControls.setAttribute("aria-expanded", String(!controls.hidden));
+      });
+      openButton.addEventListener("click", async () => {
+        if (!fullscreenElement() && !await requestFullscreenSafely()) {
+          setError(error, "請允許全螢幕顯示，再開啟複視位置標記。");
+          return;
+        }
+        setPickerOpen(true);
+      });
+      displayElement.querySelector("#diplopia-marking-done").addEventListener("click", () => {
+        setPickerOpen(false);
+        void exitFullscreenSafely();
+        openButton.focus({ preventScroll: true });
+      });
+      directionInput.addEventListener("change", () => {
+        selected = fields.find(field => field.key === directionInput.value) || fields[0];
+        update();
+      });
+      slider.addEventListener("input", () => {
+        selected.none.checked = false;
+        selected.input.value = slider.value;
+        update();
+      });
+      pickerNone.addEventListener("change", () => {
+        selected.none.checked = pickerNone.checked;
+        selected.input.value = "";
+        update();
+      });
       fields.forEach(field => {
         field.input.addEventListener("input", update);
         field.none.addEventListener("change", () => {
@@ -3170,25 +3417,68 @@
           update();
         });
       });
-      chart.addEventListener("click", event => {
+      const localPoint = event => {
         const point = chart.createSVGPoint();
         point.x = event.clientX;
         point.y = event.clientY;
         const matrix = chart.getScreenCTM();
-        if (!matrix) return;
-        const local = point.matrixTransform(matrix.inverse());
-        const dx = local.x - 240;
-        const dy = local.y - 240;
+        return matrix ? point.matrixTransform(matrix.inverse()) : null;
+      };
+      const nearestField = point => {
+        const dx = (point.x - chartGeometry.cx) / chartGeometry.rx;
+        const dy = (point.y - chartGeometry.cy) / chartGeometry.ry;
         const angle = Math.atan2(dy, dx);
         const octant = Math.round(angle / (Math.PI / 4));
         const x = Math.round(Math.cos(octant * Math.PI / 4));
         const y = Math.round(Math.sin(octant * Math.PI / 4));
-        const field = fields.find(dir => dir.x === x && dir.y === y);
+        return fields.find(dir => dir.x === x && dir.y === y);
+      };
+      const markPosition = (field, point) => {
+        const dx = (point.x - chartGeometry.cx) / chartGeometry.rx;
+        const dy = (point.y - chartGeometry.cy) / chartGeometry.ry;
+        selected = field;
         field.none.checked = false;
-        field.input.value = String(Math.round(Math.min(1, Math.max(0, (dx * x + dy * y) / (190 * (x * x + y * y)))) * 100));
+        field.input.value = String(Math.round(Math.min(1, Math.max(0, (dx * field.x + dy * field.y) / (field.x * field.x + field.y * field.y))) * 1000) / 10);
         update();
-        field.input.focus({ preventScroll: true });
+      };
+      chart.addEventListener("pointerdown", event => {
+        if (event.isPrimary === false || event.button > 0) return;
+        const point = localPoint(event);
+        if (!point) return;
+        event.preventDefault();
+        const nearCenter = Math.hypot(point.x - chartGeometry.cx, point.y - chartGeometry.cy) < 12;
+        drag = { id: event.pointerId, field: nearCenter ? null : nearestField(point) };
+        chart.setPointerCapture(event.pointerId);
+        figure.classList.toggle("is-dragging", true);
+        if (drag.field) markPosition(drag.field, point);
       });
+      chart.addEventListener("pointermove", event => {
+        if (!drag || drag.id !== event.pointerId) return;
+        const point = localPoint(event);
+        if (!point) return;
+        if (!drag.field && Math.hypot(point.x - chartGeometry.cx, point.y - chartGeometry.cy) >= 12) drag.field = nearestField(point);
+        if (drag.field) markPosition(drag.field, point);
+      });
+      const finishDrag = event => {
+        if (!drag || drag.id !== event.pointerId) return;
+        const point = localPoint(event);
+        if (event.type !== "pointercancel" && point) markPosition(drag.field || selected, point);
+        drag = null;
+        figure.classList.toggle("is-dragging", false);
+        if (chart.hasPointerCapture(event.pointerId)) chart.releasePointerCapture(event.pointerId);
+      };
+      chart.addEventListener("pointerup", finishDrag);
+      chart.addEventListener("pointercancel", finishDrag);
+      chart.addEventListener("lostpointercapture", () => { drag = null; figure.classList.toggle("is-dragging", false); });
+      chart.addEventListener("click", event => {
+        if (event.detail > 0) return;
+        const point = localPoint(event);
+        if (point) markPosition(nearestField(point), point);
+      });
+      const onPickerFullscreenChange = () => { if (pickerOpen && !fullscreenElement()) setPickerOpen(false); };
+      const onPickerResize = () => { if (pickerOpen) renderChart(); };
+      document.addEventListener("fullscreenchange", onPickerFullscreenChange);
+      window.addEventListener("resize", onPickerResize);
       let submitted = false;
       form.addEventListener("submit", event => {
         event.preventDefault();
@@ -3200,6 +3490,8 @@
           return;
         }
         submitted = true;
+        document.removeEventListener("fullscreenchange", onPickerFullscreenChange);
+        window.removeEventListener("resize", onPickerResize);
         onSubmit({
           started_at: startedAt,
           submitted_at: new Date().toISOString(),
@@ -3221,7 +3513,8 @@
           })
         });
       });
-      displayElement.querySelector("#diplopia-title").focus();
+      setPickerOpen(Boolean(fullscreenElement()));
+      if (!pickerOpen) displayElement.querySelector("#diplopia-title").focus();
     }
 
     function desktopSaveStatus() {
@@ -3395,6 +3688,19 @@
         `# Eye Tracker Hardware: ${deviceName}`,
         `# Sampling Frequency: ${samplingRateText}`,
         `# Total Gaze Samples: ${records.length}`,
+        ...(gazeCapture.perEye ? [
+          `# Per-Eye Columns: right_* = subject's right eye (OD); left_* = subject's left eye (OS)`,
+          eyeTrackingSource === EYE_SOURCE_WEBGAZER
+            ? `# Per-Eye Gaze Source: separate single-eye WebGazer models trained by the same 9-point calibration (camera-image left patch = subject's right eye); noisier than the binocular gaze`
+            : `# Per-Eye Gaze Source: not provided by the Tobii Eye Tracker 5 consumer stream; *_gaze_*_px, *_error_deg and eye_disparity_* are blank`,
+          ...(eyeTrackingSource === EYE_SOURCE_TOBII ? [
+            `# Per-Eye Position Source: Tobii gaze origin (3D eye position in mm, tracker coordinates) with per-eye validity`,
+            `# Per-Eye Stream Error: ${gazeCapture.perEye.stream_error || "None"}`
+          ] : []),
+          `# Per-Eye Samples Matched: ${gazeCapture.perEye.matched_records} / ${gazeCapture.perEye.total_records}`,
+          `# Eye Disparity Definition: left-eye minus right-eye gaze in degrees; +h = left eye's point right of the right eye's (crossed), +v = left eye's point above the right eye's`,
+          `# Stimulus Angle Definition: target center from screen center, atan(offset / viewing distance); + = right / up`
+        ] : []),
         ...(trialData.diplopiaSchedule ? [
           `# Completed Practice Count: ${trialData.diplopiaSchedule.completed_practice_count}`,
           `# Practice Local Date: ${trialData.diplopiaSchedule.practice_date}`,
@@ -3435,9 +3741,11 @@
         "accuracy_delta_t_ms",
         "gaze_velocity_deg_s",
         "is_fixation",
-        "tff_ms"
+        "tff_ms",
+        ...BINOCULAR_COLUMNS
       ];
 
+      const viewport = { width: geometry.viewportWidth, height: geometry.viewportHeight };
       const rowLines = records.map(r => [
         r.sample_index,
         r.trial_time_ms,
@@ -3463,7 +3771,8 @@
         r.accuracy_delta_t_ms,
         r.gaze_velocity_deg_s ?? "",
         r.is_fixation ?? "",
-        r.tff_ms ?? ""
+        r.tff_ms ?? "",
+        ...binocularCsvValues(r, calibration, screenPixels, viewport)
       ].join(","));
 
       const fullCsvContent = [
@@ -3519,7 +3828,7 @@
             }
 
             if (typeof extension.onGazeUpdate === "function") {
-              unsubscribeWebgazer = extension.onGazeUpdate((prediction) => {
+              unsubscribeWebgazer = extension.onGazeUpdate((prediction, raw) => {
                 if (ended || sessionStart === null || !activeTrialCapture || !activeTrialCapture.onSample) return;
                 if (activeTrialCapture.samples.length >= MAX_GAZE_SAMPLES_PER_TRIAL) {
                   activeTrialCapture.overflow += 1;
@@ -3537,7 +3846,8 @@
                   device_timestamp_us: Math.round(sampleTime * 1000),
                   sample_performance_ms: sampleTime,
                   transport_delay_ms: hasSourceTime ? round(receivedAt - sampleTime, 3) : null,
-                  clock_mapping: hasSourceTime ? "webgazer_inference_start_to_browser_performance" : "browser_receipt_time"
+                  clock_mapping: hasSourceTime ? "webgazer_inference_start_to_browser_performance" : "browser_receipt_time",
+                  eyes: webgazerEyePredictions(raw)
                 };
                 activeTrialCapture.samples.push(sample);
                 activeTrialCapture.onSample(sample);
@@ -3686,7 +3996,9 @@
               accuracy_delta_t_ms: sample.valid ? round(scoredDeltaMs, 3) : 0,
               phase: isSaccadeLatency ? "saccade_latency" : frame.phase,
               target_number: frame.target_number,
-              direction: frame.direction
+              direction: frame.direction,
+              // Tobii per-eye data is attached when the trial finishes.
+              eyes: sample.eyes
             });
           };
         }
@@ -3939,6 +4251,7 @@
             gaze_overflow_count: gazeCapture.overflow || 0,
             gaze_rejected_timestamp_count: gazeCapture.rejectedTimestampSamples || 0,
             gaze_missing_duration_ms: gazeCapture.missingDurationMs || 0,
+            per_eye: gazeCapture.perEye || null,
             viewport: { width: geometry.viewportWidth, height: geometry.viewportHeight },
             screen_pixels: { ...screenPixels },
             stimulus: {
@@ -3981,7 +4294,6 @@
           if (["duration_complete", "evaluation_complete"].includes(reason)) {
             data.diplopia_schedule = recordCompletedPractice(participantId, new Date(data.ended_at));
             if (data.diplopia_schedule.questionnaire_due) {
-              void exitFullscreenSafely();
               showDiplopiaQuestionnaire(displayElement, data, complete);
             } else {
               complete();

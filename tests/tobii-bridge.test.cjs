@@ -88,11 +88,12 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       OptionalWebGazerCameraPlugin, createCalibration, sessionBanner, saccadeFixationSummary,
       saveDesktopDocument, desktopSaveStatus, readModuleSettings, moduleFormFields,
       targetFitError, saveStoredModuleSettings, readStoredModuleSettings,
-      recordCompletedPractice, readDiplopiaProgress, diplopiaAngleDeg, updateSubjectId };
+      recordCompletedPractice, readDiplopiaProgress, diplopiaAngleDeg, updateSubjectId, tobiiStatusText,
+      installMonocularWebGazerModels };
     jsPsych.run([`), context);
   return { window, document, jsPsych, timers, frames, savedCsvs, alerts, storage, api: window.testApi,
     setNow: value => { now = value; },
-    emit: payload => handlers.get(payload.type === "status" ? "tobii-status" : "tobii-gaze")({ payload }),
+    emit: payload => handlers.get({ status: "tobii-status", eyes: "tobii-eyes" }[payload.type] || "tobii-gaze")({ payload }),
     runTimer(delay) {
       const entry = [...timers].find(([, timer]) => timer.delay === delay);
       assert.ok(entry, `Expected a ${delay} ms timer`);
@@ -203,7 +204,8 @@ function startTraining(app, source = "tobii", { module = "vor", settings = {}, c
     if (!questionnaire.has(selector)) questionnaire.set(selector, {
       value: "", checked: false, disabled: false, innerHTML: "", textContent: "",
       handlers: {}, classList: { toggle() {} }, focus() { this.focused = true; },
-      addEventListener(type, handler) { this.handlers[type] = handler; }, querySelector: element
+      addEventListener(type, handler) { this.handlers[type] = handler; }, querySelector: element,
+      setAttribute(name, value) { this[name] = value; }, setPointerCapture() {}, hasPointerCapture() { return false; }, releasePointerCapture() {}
     });
     return questionnaire.get(selector);
   };
@@ -343,12 +345,12 @@ test("chart clicks replace a no-diplopia cross with the selected direction's ons
   const none = finish.field("#no-diplopia-rightMiddle");
   none.checked = true;
   none.handlers.change();
-  chart.handlers.click({ clientX: 335, clientY: 240 });
+  chart.handlers.click({ clientX: 1440, clientY: 540 });
   assert.equal(none.checked, false);
   assert.equal(finish.field("#diplopia-rightMiddle").value, "50");
   assert.equal(finish.field("#diplopia-rightMiddle").disabled, false);
-  assert.match(finish.field('[data-diplopia-marker="rightMiddle"]').innerHTML, /<circle cx="335" cy="240"/);
-  chart.handlers.click({ clientX: 50, clientY: 50 });
+  assert.match(finish.field('[data-diplopia-marker="rightMiddle"]').innerHTML, /<circle cx="1440" cy="540"/);
+  chart.handlers.click({ clientX: 0, clientY: 0 });
   assert.equal(finish.field("#diplopia-leftUp").value, "100");
   none.checked = true;
   none.handlers.change();
@@ -357,6 +359,52 @@ test("chart clicks replace a no-diplopia cross with the selected direction's ons
   finish.submitQuestionnaire();
   assert.equal(finish.result(), undefined);
   assert.equal(finish.field("#diplopia-rightMiddle").value, "");
+});
+
+test("fullscreen diplopia drags lock a direction and update every intermediate position", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  finish();
+  const chart = finish.field("#diplopia-chart");
+  assert.equal(chart.viewBox, "0 0 1920 1080");
+  const pointer = (x, y, type) => ({ clientX: x, clientY: y, pointerId: 1, button: 0, type, preventDefault() {} });
+  chart.handlers.pointerdown(pointer(960, 540, "pointerdown"));
+  chart.handlers.pointermove(pointer(1200, 540, "pointermove"));
+  assert.equal(finish.field('#diplopia-rightMiddle').value, '25');
+  chart.handlers.pointermove(pointer(1680, 800, "pointermove"));
+  assert.equal(finish.field('#diplopia-rightMiddle').value, '75');
+  assert.equal(finish.field('#diplopia-rightDown').value, '');
+  chart.handlers.pointerup(pointer(1680, 800, "pointerup"));
+  chart.handlers.pointermove(pointer(1000, 540, "pointermove"));
+  assert.equal(finish.field('#diplopia-rightMiddle').value, '75');
+});
+
+test("the diplopia slider and no-diplopia toggle update the same persisted answer", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  finish();
+  const direction = finish.field('#diplopia-picker-direction');
+  direction.value = 'leftDown'; direction.handlers.change();
+  const slider = finish.field('#diplopia-picker-slider');
+  slider.value = '42.3'; slider.handlers.input();
+  assert.equal(finish.field('#diplopia-leftDown').value, '42.3');
+  const none = finish.field('#diplopia-picker-none');
+  none.checked = true; none.handlers.change();
+  assert.equal(finish.field('#no-diplopia-leftDown').checked, true);
+  assert.equal(slider.disabled, true);
+  none.checked = false; none.handlers.change();
+  assert.equal(finish.field('#diplopia-leftDown').value, '');
+});
+
+test("Tobii distinguishes an empty stream from invalid SDK gaze and valid coordinates", async () => {
+  const app = loadApp();
+  await app.api.connectTobiiBridge();
+  assert.match(app.api.tobiiStatusText(), /Waiting for gaze data/);
+  app.emit(gaze(-1, -1, false, 1));
+  assert.match(app.api.tobiiStatusText(), /Received: 1 samples; valid: 0/);
+  assert.match(app.api.tobiiStatusText(), /Data is arriving, but Tobii reports no valid gaze/);
+  app.emit(gaze(.25, .75, true, 2));
+  assert.match(app.api.tobiiStatusText(), /Gaze position: 25% horizontal, 75% vertical/);
 });
 
 test("an interrupted module exports immediately without a completed questionnaire", () => {
@@ -1341,4 +1389,130 @@ test("camera initialization failures still offer the untracked fallback", async 
   clickFallback();
   assert.equal(result.ready, false);
   assert.equal(result.error, "Camera denied");
+});
+
+function fakeWebGazer() {
+  class RidgeReg {
+    constructor() { this.init(); }
+    init() { this.data = []; }
+    addData(eyes, screenPos, type) { this.data.push({ eyes, screenPos, type }); }
+    predict(eyes) { return eyes ? { x: eyes.left.id, y: eyes.right.id } : null; }
+    setData(data) { for (const item of data) this.addData(item.eyes, item.screenPos, item.type); }
+    getData() { return this.data; }
+  }
+  const modules = {};
+  const regs = [new RidgeReg()];
+  return { regs, reg: { RidgeReg }, resume() {}, pause() {},
+    addRegressionModule: (name, constructor) => { modules[name] = constructor; },
+    addRegression: name => { const model = new modules[name](); model.setData(regs[0].getData()); regs.push(model); },
+    getRegression: () => regs };
+}
+
+const degreesForCm = cm => Math.round(2 * Math.atan(cm / 120) * 180 / Math.PI * 1000) / 1000;
+
+test("single-eye WebGazer models train and predict from only their own camera patch", () => {
+  const app = loadApp();
+  const webgazer = fakeWebGazer();
+  webgazer.regs[0].addData({ left: { id: 1 }, right: { id: 2 } }, [10, 20], "click");
+  app.api.installMonocularWebGazerModels(webgazer);
+  const [, right, left] = webgazer.regs;
+  assert.equal(right.eye, "right");
+  assert.equal(left.eye, "left");
+  // Seeded data and later calibration clicks both reach the single-eye models.
+  right.addData({ left: { id: 3 }, right: { id: 4 } }, [30, 40], "click");
+  assert.deepEqual(right.getData().map(item => [item.eyes.left.id, item.eyes.right.id]), [[1, 1], [3, 3]]);
+  // The unmirrored camera image shows the subject's right eye on its left side.
+  assert.deepEqual(right.predict({ left: { id: 1 }, right: { id: 2 } }), { x: 1, y: 1 });
+  assert.deepEqual(left.predict({ left: { id: 1 }, right: { id: 2 } }), { x: 2, y: 2 });
+  assert.equal(right.predict(null), null);
+  right.init();
+  assert.equal(right.getData().length, 0);
+});
+
+test("WebGazer exports each eye's gaze, error and left-minus-right disparity", () => {
+  const app = loadApp();
+  const webgazer = fakeWebGazer();
+  app.api.installMonocularWebGazerModels(webgazer);
+  app.window.webgazer = webgazer;
+  let onGaze;
+  app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+  const finish = startTraining(app, "webgazer");
+  app.setNow(1030);
+  onGaze({ x: 965, y: 530, sample_performance_ms: 1030 },
+    { x: 965.2, y: 530.4, all: [{ x: 965.2, y: 530.4 }, { x: 940, y: 540 }, { x: 990, y: 520 }] });
+  app.setNow(1060);
+  onGaze(null);
+  const result = finish();
+  const [sample, blink] = csvRows(app);
+  assert.equal(sample.right_eye_valid, "1");
+  assert.equal(sample.right_gaze_x_px, "940");
+  assert.equal(sample.left_gaze_y_px, "520");
+  assert.equal(Number(sample.right_error_deg), degreesForCm(20 * 53 / 1920));
+  // The left eye's point lies right of and above the right eye's point.
+  assert.equal(Number(sample.eye_disparity_h_deg), degreesForCm(50 * 53 / 1920));
+  assert.equal(Number(sample.eye_disparity_v_deg), degreesForCm(20 * 30 / 1080));
+  assert.equal(sample.stimulus_h_deg, "0");
+  assert.equal(sample.right_eye_origin_x_mm, "");
+  assert.equal(blink.right_eye_valid, "0");
+  assert.equal(blink.right_gaze_x_px, "");
+  assert.equal(blink.eye_disparity_deg, "");
+  assert.match(app.savedCsvs[0].content, /Per-Eye Gaze Source: separate single-eye WebGazer models/);
+  assert.match(app.savedCsvs[0].content, /Per-Eye Samples Matched: 2 \/ 2/);
+  assert.equal(result.per_eye.source, "webgazer_single_eye_ridge");
+  assert.equal(JSON.parse(result.gaze_path)[0].eyes.left.x, 990);
+});
+
+test("WebGazer without single-eye models leaves per-eye columns blank instead of invalid", () => {
+  const app = loadApp();
+  let onGaze;
+  app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+  const finish = startTraining(app, "webgazer");
+  app.setNow(1030);
+  onGaze({ x: 960, y: 540, sample_performance_ms: 1030 }, { x: 960, y: 540, all: [{ x: 960, y: 540 }] });
+  finish();
+  const [sample] = csvRows(app);
+  assert.equal(sample.right_eye_valid, "");
+  assert.match(app.savedCsvs[0].content, /Per-Eye Samples Matched: 0 \/ 1/);
+});
+
+const eyes = (timestamp, right, left) => ({ type: "eyes", deviceTimestampMicroseconds: timestamp, right, left });
+
+test("Tobii per-eye positions join gaze samples by device timestamp in either arrival order", () => {
+  const app = loadApp();
+  const finish = startTraining(app);
+  app.setNow(1030.3);
+  app.emit(gaze(0.5, 0.5, true, 1000000));
+  app.emit(eyes(1000000, { valid: true, originMm: [31.25, -10, 610.5] }, { valid: true, originMm: [-30.75, -9.5, 612] }));
+  app.setNow(1060.6);
+  app.emit(eyes(1030300, { valid: true, originMm: [31, -10, 611] }, { valid: false, originMm: null }));
+  app.emit(gaze(0.5, 0.5, true, 1030300));
+  app.setNow(1090.9);
+  app.emit(gaze(0.5, 0.5, true, 1060600));
+  const result = finish();
+  const [first, second, third] = csvRows(app);
+  assert.deepEqual([first.right_eye_origin_x_mm, first.right_eye_origin_z_mm, first.left_eye_origin_x_mm], ["31.25", "610.5", "-30.75"]);
+  assert.deepEqual([first.right_eye_valid, first.left_eye_valid], ["1", "1"]);
+  assert.deepEqual([second.right_eye_valid, second.left_eye_valid, second.left_eye_origin_x_mm], ["1", "0", ""]);
+  // Tobii's consumer stream has no per-eye gaze point, so no disparity is invented.
+  assert.equal(first.right_gaze_x_px, "");
+  assert.equal(first.eye_disparity_deg, "");
+  assert.equal(third.right_eye_valid, "");
+  assert.match(app.savedCsvs[0].content, /Per-Eye Samples Matched: 2 \/ 3/);
+  assert.match(app.savedCsvs[0].content, /Per-Eye Stream Error: None/);
+  assert.equal(result.per_eye.eye_sample_count, 2);
+  assert.equal(JSON.parse(result.gaze_path)[1].eyes.right.origin_mm[2], 611);
+});
+
+test("a refused Tobii per-eye stream is reported in status and export", async () => {
+  const app = loadApp();
+  await app.api.connectTobiiBridge();
+  app.emit({ type: "status", connected: true, eyePositionError: "Tobii per-eye position subscription failed (SDK error 2)" });
+  app.emit(gaze(0.25, 0.75, true, 1));
+  assert.match(app.api.tobiiStatusText(), /Per-eye positions unavailable: .*SDK error 2/);
+  const finish = startTraining(app);
+  app.setNow(1030.3);
+  app.emit(gaze(0.5, 0.5, true, 1000000));
+  finish();
+  assert.match(app.savedCsvs[0].content, /Per-Eye Stream Error: Tobii per-eye position subscription failed \(SDK error 2\)/);
+  assert.match(app.savedCsvs[0].content, /Per-Eye Samples Matched: 0 \/ 1/);
 });

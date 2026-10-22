@@ -27,13 +27,17 @@ test("jsPsych uses one WebGazer prediction stream through calibration, validatio
   const extension = new context.jsPsychExtensionWebgazer({ getDisplayElement: () => ({}) });
   await extension.initialize({ webgazer });
   const predictions = [];
-  const unsubscribe = extension.onGazeUpdate(prediction => predictions.push(prediction));
+  const rawPredictions = [];
+  const unsubscribe = extension.onGazeUpdate((prediction, raw) => { predictions.push(prediction); rawPredictions.push(raw); });
   extension.resume();
   assert.equal(paused, false);
   const streamListener = listener;
-  listener({ x: 800.2, y: 500.6, t: 110 });
+  const raw = { x: 800.2, y: 500.6, t: 110, all: [{ x: 800.2, y: 500.6 }, { x: 780, y: 500 }, { x: 820, y: 501 }] };
+  listener(raw);
   assert.equal(predictions[0].x, 800);
   assert.equal(predictions[0].y, 501);
+  // Per-eye models are read from the unrounded WebGazer prediction of the same frame.
+  assert.equal(rawPredictions[0], raw);
   extension.on_start({ targets: [] });
   extension.on_load();
   assert.equal(listener, streamListener);
