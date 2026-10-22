@@ -1440,15 +1440,9 @@
                       <select id="initial-eye-tracking-source" name="eyeTrackingSource">
                         <option value="off" selected>Off</option>
                         <option value="webgazer" ${AppState.eyeTracking.available ? "" : "disabled"}>WebGazer (camera)</option>
-                        <option value="tobii" ${AppState.tobii.configured ? "" : "disabled"}>Tobii Eye Tracker Bridge</option>
                       </select>
                     </div>
-                    <p id="initial-tobii-status" class="option-note" hidden></p>
-                    <p class="option-note">WebGazer uses camera positioning and nine-point calibration. Tobii uses hardware tracking configured in Tobii Experience. Both feature a 5-point validation step that dynamically calibrates the hit threshold.</p>
-                    <label class="option-row" for="initial-tobii-calibrated">
-                      <input id="initial-tobii-calibrated" name="tobiiCalibrated" type="checkbox" disabled>
-                      <span>I confirm that this participant was calibrated in Tobii Experience</span>
-                    </label>
+                    <p class="option-note">WebGazer uses camera positioning and nine-point calibration, featuring a 5-point validation step that dynamically calibrates the hit threshold.</p>
                     <p id="calibration-error" class="form-error" role="alert"></p>
                     <div class="form-actions">
                       <p class="safety-note">Set browser zoom to 100%. Press ESC immediately if the participant feels dizzy or uncomfortable.</p>
@@ -1489,8 +1483,10 @@
         }
         const syncInitialEyeSource = () => {
           const tobiiSelected = initialEyeSource.value === EYE_SOURCE_TOBII;
-          initialTobiiCalibrated.disabled = !tobiiSelected;
-          if (!tobiiSelected) initialTobiiCalibrated.checked = false;
+          if (initialTobiiCalibrated) {
+            initialTobiiCalibrated.disabled = !tobiiSelected;
+            if (!tobiiSelected) initialTobiiCalibrated.checked = false;
+          }
         };
         initialEyeSource.addEventListener("change", async () => {
           syncInitialEyeSource();
@@ -1518,13 +1514,13 @@
             setError(error, "Launch this page with Oculomotor Tobii Bridge before selecting Tobii tracking.");
             return;
           }
-          if (eyeTrackingSource === EYE_SOURCE_TOBII && !initialTobiiCalibrated.checked) {
+          if (eyeTrackingSource === EYE_SOURCE_TOBII && initialTobiiCalibrated && !initialTobiiCalibrated.checked) {
             setError(error, "Confirm calibration in Tobii Experience before enabling Tobii tracking.");
             return;
           }
           AppState.calibration = createCalibration(result.values);
           saveDisplaySettings(AppState.calibration);
-          AppState.tobii.hardwareCalibrationConfirmed = eyeTrackingSource === EYE_SOURCE_TOBII && initialTobiiCalibrated.checked;
+          AppState.tobii.hardwareCalibrationConfirmed = eyeTrackingSource === EYE_SOURCE_TOBII && Boolean(initialTobiiCalibrated?.checked);
           const sourceReady = await setEyeTrackingSource(eyeTrackingSource);
           if (eyeTrackingSource === EYE_SOURCE_TOBII && !sourceReady) {
             setError(error, tobiiStatusText());
@@ -1772,7 +1768,7 @@
             <input id="threshold-arcmin" name="distanceThresholdArcmin" data-label="Hit Distance Threshold (arcmin)" type="number" min="10" max="${thresholdMax}" step="1" inputmode="decimal" value="${currentThreshArcmin}" required>
             <span class="unit">' (arcmin)</span>
           </div>
-          <p class="field-hint">Scoring tolerance around the target center. This does not move the target. Tobii adds ${TOBII_ERROR_ALLOWANCE_DEG}°; WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
+          <p class="field-hint">Scoring tolerance around the target center. This does not move the target. WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
         </div>`;
 
       let spanSliders = "";
@@ -2226,7 +2222,6 @@
               </div>
               ${subjectIdBar(subjectId)}
               ${calibrationStrip(AppState.calibration)}
-              <p id="tobii-live-status" class="option-note" ${AppState.eyeTracking.source === EYE_SOURCE_TOBII ? "" : "hidden"}>${escapeHtml(tobiiStatusText())}</p>
               ${sessionBanner(AppState.lastSession)}
               <div class="module-grid">${moduleCards()}</div>
             </div>
@@ -2237,7 +2232,7 @@
               <ol>
                 <li>Set browser zoom to 100%. Seat the participant directly in front of the screen at the configured viewing distance.</li>
                 <li>Select a module, enter the settings, and choose Start. The browser will enter fullscreen when permitted.</li>
-                <li>Eye tracking is optional. WebGazer uses camera positioning and nine-point calibration. Tobii uses the hardware profile calibrated in Tobii Experience.</li>
+                <li>Eye tracking is optional. WebGazer uses camera positioning and nine-point calibration.</li>
                 <li>The pointer is hidden during training. Press ESC at any time to stop and return to the menu.</li>
                 <li>Evaluation follows a fixed sequence. Predictable and Random modes stop at the configured total duration.</li>
               </ol>
@@ -2264,21 +2259,12 @@
                   <select id="eye-tracking-source" name="eyeTrackingSource">
                     <option value="off" ${AppState.eyeTracking.source === EYE_SOURCE_OFF ? "selected" : ""}>Off</option>
                     <option value="webgazer" ${AppState.eyeTracking.source === EYE_SOURCE_WEBGAZER ? "selected" : ""} ${AppState.eyeTracking.available ? "" : "disabled"}>WebGazer (camera)</option>
-                    <option value="tobii" ${AppState.eyeTracking.source === EYE_SOURCE_TOBII ? "selected" : ""} ${AppState.tobii.configured ? "" : "disabled"}>Tobii Eye Tracker Bridge</option>
                   </select>
                 </div>
                 <p id="eye-tracking-source-note" class="option-note"></p>
                 <label class="option-row" for="webgazer-recalibrate">
                   <input id="webgazer-recalibrate" name="webgazerRecalibrate" type="checkbox" ${AppState.eyeTracking.calibrationRequested ? "checked" : ""}>
                   <span>Run WebGazer calibration before the next training session</span>
-                </label>
-                <label class="option-row" for="tobii-calibrated">
-                  <input id="tobii-calibrated" name="tobiiCalibrated" type="checkbox" ${AppState.tobii.hardwareCalibrationConfirmed ? "checked" : ""}>
-                  <span>I confirm that this participant was calibrated in Tobii Experience</span>
-                </label>
-                <label class="option-row" for="tobii-revalidate">
-                  <input id="tobii-revalidate" name="tobiiRevalidate" type="checkbox" ${AppState.tobii.needsRevalidation ? "checked" : ""}>
-                  <span>Run 5-point gaze validation before the next Tobii training session</span>
                 </label>
                 <p id="eye-tracking-status" class="option-note"></p>
                 <p id="eye-tracking-error" class="form-error" role="alert"></p>
@@ -2340,7 +2326,7 @@
           const tobiiSelected = source === EYE_SOURCE_TOBII;
           const calibrationIsRequired = webgazerSelected && !AppState.eyeTracking.calibrated;
           eyeTrackingRecalibrateInput.disabled = !webgazerSelected || calibrationIsRequired;
-          tobiiCalibratedInput.disabled = !tobiiSelected;
+          if (tobiiCalibratedInput) tobiiCalibratedInput.disabled = !tobiiSelected;
           if (tobiiRevalidateInput) tobiiRevalidateInput.disabled = !tobiiSelected;
           if (!webgazerSelected) eyeTrackingRecalibrateInput.checked = false;
           if (calibrationIsRequired) eyeTrackingRecalibrateInput.checked = true;
@@ -2373,11 +2359,13 @@
             setError(displayElement.querySelector("#eye-tracking-error"), "Launch this page with Oculomotor Tobii Bridge first.");
             return;
           }
-          if (source === EYE_SOURCE_TOBII && !tobiiCalibratedInput.checked) {
+          if (source === EYE_SOURCE_TOBII && tobiiCalibratedInput && !tobiiCalibratedInput.checked) {
             setError(displayElement.querySelector("#eye-tracking-error"), "Confirm calibration in Tobii Experience before enabling Tobii tracking.");
             return;
           }
-          AppState.tobii.hardwareCalibrationConfirmed = Boolean(tobiiCalibratedInput.checked);
+          if (tobiiCalibratedInput) {
+            AppState.tobii.hardwareCalibrationConfirmed = Boolean(tobiiCalibratedInput.checked);
+          }
           if (source === EYE_SOURCE_TOBII && tobiiRevalidateInput && tobiiRevalidateInput.checked) {
             AppState.tobii.needsRevalidation = true;
             AppState.tobii.validated = false;
@@ -2396,8 +2384,10 @@
           }
           displayElement.querySelector("[data-open-eye-tracking]").textContent = eyeTrackingStatusText();
           const liveStatus = displayElement.querySelector("#tobii-live-status");
-          liveStatus.hidden = source !== EYE_SOURCE_TOBII;
-          if (!liveStatus.hidden) liveStatus.textContent = tobiiStatusText();
+          if (liveStatus) {
+            liveStatus.hidden = source !== EYE_SOURCE_TOBII;
+            if (!liveStatus.hidden) liveStatus.textContent = tobiiStatusText();
+          }
           closeDialog(eyeTrackingDialog);
         });
 

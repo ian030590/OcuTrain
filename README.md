@@ -103,7 +103,7 @@ npm run test:native
 
 ## 版本與授權
 
-版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`，Windows Tauri 2 遷移為 `v1.2.0`，Saccade 刺激範圍與命中門檻修正為 `v1.2.1`，目標範圍滑桿及介面操作修正為 `v1.2.2`，Pursuit／Fixation 目標範圍控制為 `v1.3.0`，八方向複視角度問卷及定期填答為 `v1.4.0`，全螢幕複視標記、Tobii 資料狀態及左右眼分開匯出為 `v1.5.0`。
+版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`，Windows Tauri 2 遷移為 `v1.2.0`，Saccade 刺激範圍與命中門檻修正為 `v1.2.1`，目標範圍滑桿及介面操作修正為 `v1.2.2`，Pursuit／Fixation 目標範圍控制為 `v1.3.0`，八方向複視角度問卷及定期填答為 `v1.4.0`，全螢幕複視標記、Tobii 資料狀態及左右眼分開匯出為 `v1.5.0`，UI 移除 Tobii 功能為 `v1.5.1`。
 
 Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git tag 使用 `v<版本>`。
 
