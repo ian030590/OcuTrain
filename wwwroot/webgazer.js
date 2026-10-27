@@ -86054,11 +86054,14 @@ TFFaceMesh.prototype.getEyePatches = async function(imageCanvas, width, height) 
   const predictions = await model.estimateFaces(imageCanvas);
 
   if (predictions.length == 0){
+    this.positionsArray = null;
+    this.predictionReady = false;
     return false;
   }
 
   // Save positions to global variable
   this.positionsArray = predictions[0].scaledMesh;
+  this.positionsTimestamp = performance.now();
   const positions = this.positionsArray;
 
   // Fit the detected eye in a rectangle. [20200626 xk] not clear which approach is better

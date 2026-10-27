@@ -5,7 +5,7 @@ const vm = require("node:vm");
 const { test } = require("node:test");
 
 const root = path.resolve(__dirname, "..");
-const appSource = fs.readFileSync(path.join(root, "wwwroot/app.js"), "utf8");
+const appSource = fs.readFileSync(path.join(root, "wwwroot/training.js"), "utf8");
 const desktopAdapter = fs.readFileSync(path.join(root, "wwwroot/desktop.js"), "utf8");
 
 function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false, saveError = null, storage = new Map() } = {}) {
@@ -89,7 +89,8 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       saveDesktopDocument, desktopSaveStatus, readModuleSettings, moduleFormFields,
       targetFitError, saveStoredModuleSettings, readStoredModuleSettings,
       recordCompletedPractice, readDiplopiaProgress, diplopiaAngleDeg, updateSubjectId, tobiiStatusText,
-      installMonocularWebGazerModels };
+      installMonocularWebGazerModels, vorHeadPose, vorTargetPoint, pendingVorHeadTracking,
+      fallBackToUntrackedSession };
     jsPsych.run([`), context);
   return { window, document, jsPsych, timers, frames, savedCsvs, alerts, storage, api: window.testApi,
     setNow: value => { now = value; },
@@ -552,6 +553,163 @@ function settingsForm(values) {
   return { elements: { namedItem: name => name in values
     ? { value: String(values[name]), dataset: { label: name } } : null } };
 }
+
+function faceMeshPose(yawDeg = 0, pitchDeg = 0) {
+  const yaw = yawDeg * Math.PI / 180;
+  const pitch = pitchDeg * Math.PI / 180;
+  const mesh = [];
+  for (const [index, x, y] of [[33, -50, 0], [263, 50, 0], [10, 0, -80], [152, 0, 80]]) {
+    const z = y * Math.sin(pitch);
+    mesh[index] = [320 + x * Math.cos(yaw) + z * Math.sin(yaw),
+      240 + y * Math.cos(pitch), -x * Math.sin(yaw) + z * Math.cos(yaw)];
+  }
+  return mesh;
+}
+
+test("VOR multiplier and axis validate, persist and upgrade existing settings", () => {
+  const app = loadApp();
+  const defaults = app.api.AppState.moduleSettings.vor;
+  assert.equal(defaults.vorGain, 1);
+  assert.equal(defaults.vorAxis, "horizontal");
+  for (const vorGain of [1, 1.1, 1.5, 2]) {
+    for (const vorAxis of ["horizontal", "vertical"]) {
+      const parsed = app.api.readModuleSettings(settingsForm({ ...defaults, vorGain, vorAxis, distanceThresholdArcmin: 90 }), "vor");
+      assert.equal(parsed.errors.length, 0);
+      app.api.saveStoredModuleSettings({ vor: parsed.values });
+      const saved = app.api.readStoredModuleSettings().vor;
+      assert.equal(saved.vorGain, vorGain);
+      assert.equal(saved.vorAxis, vorAxis);
+      const html = app.api.moduleFormFields("vor", saved);
+      assert.match(html, /name="vorGain"[\s\S]*?min="1" max="2" step="0.1"/);
+      assert.match(html, new RegExp(`value="${vorAxis}" selected`));
+    }
+  }
+  for (const vorGain of ["", 0, 0.9, 2.1, NaN, Infinity]) {
+    assert.ok(app.api.readModuleSettings(settingsForm({ ...defaults, vorGain, distanceThresholdArcmin: 90 }), "vor").errors.length);
+  }
+  for (const vorAxis of ["", "diagonal", "both"]) {
+    assert.ok(app.api.readModuleSettings(settingsForm({ ...defaults, vorAxis, distanceThresholdArcmin: 90 }), "vor").errors.length);
+  }
+  app.api.saveStoredModuleSettings({ vor: { totalSec: 20 } });
+  assert.equal(app.api.readStoredModuleSettings().vor.vorGain, 1);
+  app.api.saveStoredModuleSettings({ vor: { vorGain: 99, vorAxis: "diagonal" } });
+  assert.equal(app.api.readStoredModuleSettings().vor.vorGain, 1);
+  assert.equal(app.api.readStoredModuleSettings().vor.vorAxis, "horizontal");
+});
+
+test("VOR uses head rotation rather than translation and converts opposite angles using physical calibration", () => {
+  const app = loadApp();
+  const calibration = { screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 };
+  const screen = { width: 1920, height: 1080 };
+  const geometry = { viewportWidth: 1920, viewportHeight: 1080, targetWidth: 40, targetHeight: 40 };
+  const neutral = app.api.vorHeadPose(faceMeshPose(3, -2));
+  assert.equal(app.api.vorHeadPose(null), null);
+  assert.equal(app.api.vorHeadPose([[NaN, 0, 0]]), null);
+  const translated = faceMeshPose(3, -2).map(point => point?.map((value, axis) => value + [90, -40, 30][axis]));
+  assert.ok(Math.abs(app.api.vorHeadPose(translated).yaw - neutral.yaw) < 1e-10);
+  for (const vorGain of [1, 1.5, 2]) {
+    for (const vorAxis of ["horizontal", "vertical"]) {
+      for (const direction of [-1, 1]) {
+        const pose = app.api.vorHeadPose(faceMeshPose(3 + direction * 10, -2 + direction * 10));
+        const point = app.api.vorTargetPoint(pose, neutral, { vorGain, vorAxis }, calibration, screen, geometry);
+        const expectedAngle = -direction * 10 * (vorGain - 1) * Math.PI / 180;
+        const horizontal = vorAxis === "horizontal";
+        const angle = Math.atan((horizontal ? (point.x - 960) * 53 / 1920 : (point.y - 540) * 30 / 1080) / 60);
+        assert.ok(Math.abs(angle - expectedAngle) < 1e-10, `${vorGain}x ${vorAxis} ${direction}`);
+        assert.equal(horizontal ? point.y : point.x, horizontal ? 540 : 960);
+      }
+    }
+  }
+  const edge = app.api.vorTargetPoint({ yaw: -Math.PI / 2, pitch: 0 }, { yaw: 0, pitch: 0 },
+    { vorGain: 2, vorAxis: "horizontal" }, calibration, screen, geometry);
+  assert.equal(edge.x, 1900, "target radius stays on screen at extreme head angles");
+});
+
+for (const vorAxis of ["horizontal", "vertical"]) {
+  test(`VOR ${vorAxis} updates every frame, ignores other-axis noise and retains position across color changes`, () => {
+    const app = loadApp();
+    let positions = faceMeshPose();
+    let paused = 0;
+    const tracker = { positionsTimestamp: 1000, getPositions: () => positions };
+    app.window.webgazer = { getTracker: () => tracker, pause: () => paused++ };
+    app.jsPsych.extensions.webgazer = { resume() {} };
+    const finish = startTraining(app, "off", { settings: { vorGain: 2, vorAxis, totalSec: 2 } });
+    const initial = finish.stimulus.style.transform;
+    const frame = (time, yaw, pitch) => {
+      positions = faceMeshPose(yaw, pitch);
+      tracker.positionsTimestamp = time;
+      app.setNow(time);
+      app.runFrame();
+      return finish.stimulus.style.transform;
+    };
+    assert.equal(frame(1100, vorAxis === "vertical" ? 10 : 0, vorAxis === "horizontal" ? 10 : 0), initial);
+    const moved = frame(1200, 10, 10);
+    assert.notEqual(moved, initial);
+    assert.equal(frame(1500, 10, 10), moved, "a number/color change must not snap back to center");
+    const result = finish();
+    assert.equal(result.settings.vorGain, 2);
+    assert.equal(result.settings.vorAxis, vorAxis);
+    assert.equal(paused, 1);
+    assert.match(app.savedCsvs[0].content, /VOR Multiplier: 2x/);
+    assert.match(app.savedCsvs[0].content, new RegExp(`VOR Direction: ${vorAxis === "vertical" ? "Vertical" : "Horizontal"}`));
+  });
+}
+
+test("moving VOR stops on stale tracking and camera failure cannot silently run a stationary target", () => {
+  const app = loadApp();
+  const tracker = { positionsTimestamp: 1000, getPositions: () => faceMeshPose() };
+  app.window.webgazer = { getTracker: () => tracker, pause() {} };
+  app.jsPsych.extensions.webgazer = { resume() {} };
+  const finish = startTraining(app, "off", { settings: { vorGain: 2, totalSec: 2 } });
+  app.setNow(1600);
+  app.runFrame();
+  assert.equal(finish.result().end_reason, "head_tracking_lost");
+  app.api.AppState.pending = { module: "vor", settings: { vorGain: 1.5 }, eyeTrackingSource: "webgazer" };
+  app.api.fallBackToUntrackedSession("Camera unavailable");
+  assert.equal(app.api.AppState.pending, null);
+  assert.equal(app.api.AppState.lastSession.end_reason, "head_tracking_unavailable");
+});
+
+test("moving VOR waits for a fresh neutral pose before starting its duration", () => {
+  const app = loadApp();
+  const tracker = { positionsTimestamp: 0, getPositions: () => faceMeshPose() };
+  app.window.webgazer = { getTracker: () => tracker, pause() {} };
+  app.jsPsych.extensions.webgazer = { resume() {} };
+  const finish = startTraining(app, "off", { settings: { vorGain: 1.5, totalSec: 2 } });
+  assert.equal([...app.timers.values()].some(timer => timer.delay === 2000), false);
+  app.setNow(1500);
+  tracker.positionsTimestamp = 1500;
+  app.runFrame();
+  assert.equal([...app.timers.values()].some(timer => timer.delay === 2000), true);
+  app.setNow(3500);
+  assert.equal(finish().actual_duration_ms, 2000);
+});
+
+test("moving VOR camera setup requires a fresh face and offers cancellation", async () => {
+  const app = loadApp();
+  app.api.AppState.pending = { module: "vor", settings: { vorGain: 2 }, eyeTrackingEnabled: false };
+  const tracker = { positionsTimestamp: 0, getPositions: () => faceMeshPose() };
+  app.window.webgazer = { getTracker: () => tracker };
+  app.jsPsych.extensions.webgazer = { isInitialized: () => true,
+    showVideo() {}, hideVideo() {}, hidePredictions() {}, resume() {}, pause() {} };
+  const controls = new Map();
+  const display = { innerHTML: "", querySelector: selector => {
+    if (!controls.has(selector)) controls.set(selector, { addEventListener: (_, click) => { controls.get(selector).click = click; } });
+    return controls.get(selector);
+  } };
+  let result;
+  app.jsPsych.finishTrial = value => { result = value; };
+  new app.api.OptionalWebGazerCameraPlugin(app.jsPsych).trial(display, {});
+  await new Promise(setImmediate);
+  assert.match(display.innerHTML, /Start VOR training/);
+  assert.match(display.innerHTML, /Cancel training/);
+  assert.equal(controls.get("#webgazer-camera-continue").disabled, true);
+  tracker.positionsTimestamp = 1000;
+  app.runTimer(200);
+  assert.equal(controls.get("#webgazer-camera-continue").disabled, false);
+  controls.get("#webgazer-camera-continue").click();
+  assert.equal(result.ready, true);
+});
 
 for (const module of ["vor", "pursuit", "saccade", "fixation"]) {
   test(`${module} reads, validates and remembers the number/color interval in milliseconds`, () => {

@@ -129,3 +129,20 @@ test("ending WebGazer releases every camera track and removes its nested preview
   assert.equal(context.paused, true);
   assert.equal(mouseListenersRemoved, true);
 });
+
+test("FaceMesh timestamps fresh head poses and clears landmarks when the face disappears", async () => {
+  const mesh = Array.from({ length: 468 }, (_, index) => [index, index, 0]);
+  let predictions = [{ scaledMesh: mesh }];
+  const context = vm.createContext({ TFFaceMesh: function() {}, performance: { now: () => 1234 }, console });
+  vm.runInContext(source.match(/TFFaceMesh\.prototype\.getEyePatches = async function\(imageCanvas, width, height\) \{[\s\S]*?\n\};/)[0], context);
+  const tracker = new context.TFFaceMesh();
+  tracker.model = Promise.resolve({ estimateFaces: async () => predictions });
+  const canvas = { width: 640, getContext: () => ({ getImageData: () => ({}) }) };
+  await tracker.getEyePatches(canvas, 640, 480);
+  assert.equal(tracker.positionsArray, mesh);
+  assert.equal(tracker.positionsTimestamp, 1234);
+  predictions = [];
+  await tracker.getEyePatches(canvas, 640, 480);
+  assert.equal(tracker.positionsArray, null);
+  assert.equal(tracker.predictionReady, false);
+});

@@ -35,10 +35,12 @@
 
 | 模組 | 刺激流程 | Accuracy 計分 |
 | --- | --- | --- |
-| VOR | 中央目標的顏色與數字變化 | 有效追蹤時間 |
+| VOR | 1–2x 倍數，選擇左右／上下頭動；目標持續變換顏色與數字 | 有效追蹤時間 |
 | Smooth Pursuit | 中心 → 設定範圍端點 → 連續回到中心 | 去程與回程；排除中央十字 |
 | Fixation | 目標移至設定範圍端點後停留 | 僅計端點停留；排除中央十字及移動途中 |
 | Saccade | 目標在選定的九宮格位置間躍遷 | 沿用目標命中計分，每次目標出現後前 200 ms 排除；另計 TFF |
+
+VOR 的 **VOR Multiplier** 可選 1.0–2.0x（每格 0.1x），**Head Movement Direction** 可選左右或上下。1x 時圓點固定中央，只有頭動；2x 時圓點依頭部旋轉角度反向移動相同角度；1.5x 則反向移動一半角度。系統只使用所選軸的旋轉角度，排除另一軸的移動。超過 1x 時，即使 Eye tracking 為 Off 也需要攝影機；開始前請面向正前方並按下繼續，以建立中立姿勢。頭部角度由攝影機 FaceMesh 估算，圓點位置依螢幕實體尺寸與觀看距離換算，超過畫面時限制於邊緣；攝影機失去追蹤時會中止訓練。JSON 設定與 CSV 報告會保留倍數、方向。
 
 螢幕設定的 Horizontal／Vertical angle 是整個螢幕的總視角。Pursuit、Fixation 與 Saccade 的 **Horizontal／Vertical Target Span** 以滑桿分別控制左右、上下兩側目標中心之間的總視角，顯示目前數值及上限；實際像素位置與滑桿上限依輸入的實體螢幕長寬及觀看距離換算，並預留目標半徑，避免刺激超出畫面。調大目標時，上限會同步縮小，超出上限的設定會自動調整。Pursuit 會移至設定範圍的端點後返回中心，Fixation 會在該端點停留；CSV／JSON 會保留各模組的範圍設定。未曾設定範圍的舊資料，Pursuit／Fixation 沿用原畫面邊緣，Saccade 沿用原九宮格各格中央的位置。
 
@@ -70,7 +72,7 @@ TFF 使用注視的開始時間，不包含等待確認的時間，也不受 Acc
 - 左右眼分開記錄：`right_*` 為受試者右眼（OD），`left_*` 為左眼（OS）；`stimulus_h_deg`／`stimulus_v_deg` 為目標相對畫面中心的角度（右、上為正）。
   - WebGazer：以同一次九點校正另外訓練左眼、右眼各自的模型，輸出每眼注視點（`*_gaze_x_px`／`*_gaze_y_px`）、每眼與目標的誤差（`*_error_deg`），以及左眼減右眼的分離角度（`eye_disparity_h_deg`／`eye_disparity_v_deg`／`eye_disparity_deg`；水平正值代表左眼注視點在右眼注視點的右側，即交叉方向）。單眼估計的雜訊比雙眼合併的注視點大，建議以中心位置的分離角度作為同一次測驗的基準。
   - Tobii：Eye Tracker 5 的一般授權資料流只提供兩眼合併的注視點，不提供每眼注視點，因此不計算分離角度；改記錄每眼是否偵測到（`*_eye_valid`）及每眼的 3D 位置（`*_eye_origin_x_mm`／`_y_mm`／`_z_mm`，追蹤器座標）。裝置拒絕此資料流時，狀態列與 CSV 會顯示原因。
-- 現有程式會查詢網路時間；測驗結束後會將工作階段資料排入 jsPsych Pipe 上傳佇列，並發送 Discord 完成通知。上傳失敗的資料保留於本機佇列，之後重試。相關設定及流程位於 [wwwroot/app.js](wwwroot/app.js)。
+- 現有程式會查詢網路時間；測驗結束後會將工作階段資料排入 jsPsych Pipe 上傳佇列，並發送 Discord 完成通知。上傳失敗的資料保留於本機佇列，之後重試。相關設定及流程位於 [wwwroot/training.js](wwwroot/training.js)。
 - 執行檔目前保留首次啟動起 30 日的期限檢查及時鐘回退檢查。
 
 ## 從原始碼建置
@@ -97,7 +99,7 @@ npm run test:native
 
 - [src-tauri/](src-tauri/)：Tauri 2 宿主、Tobii 原生串流與 SDK 時鐘、DPI、全螢幕及檔案儲存。
 - [wwwroot/desktop.js](wwwroot/desktop.js)：Tauri 事件與命令橋接。
-- [wwwroot/app.js](wwwroot/app.js)：校正、刺激、計分、TFF 與匯出。
+- [wwwroot/training.js](wwwroot/training.js)：校正、刺激、計分、TFF 與匯出。
 - [tests/](tests/)：追蹤橋接、時間對齊、計分與 WebGazer 執行測試。
 - [產品與技術規格](PRD_TRD_眼動訓練系統.md)：參數與計算細節。
 
@@ -106,5 +108,7 @@ npm run test:native
 版本使用 `MAJOR.MINOR.PATCH`（大版本.中版本.小修正）：重大不相容變更升大版本、新增功能升中版本、問題修正升小版本。初始正式版為 `v1.0.0`，Accuracy／TFF 更新為 `v1.1.0`，Windows Tauri 2 遷移為 `v1.2.0`，Saccade 刺激範圍與命中門檻修正為 `v1.2.1`，目標範圍滑桿及介面操作修正為 `v1.2.2`，Pursuit／Fixation 目標範圍控制為 `v1.3.0`，八方向複視角度問卷及定期填答為 `v1.4.0`，全螢幕複視標記、Tobii 資料狀態及左右眼分開匯出為 `v1.5.0`，UI 移除 Tobii 功能為 `v1.5.1`。
 
 Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git tag 使用 `v<版本>`。
+
+`v1.6.0` 新增 VOR 1–2x 倍數、左右／上下方向及攝影機頭部角度控制。
 
 本專案採用 **GNU Affero General Public License v3.0（AGPL-3.0）**，完整條文見 [LICENSE](LICENSE)。第三方函式庫、模型及 Tobii 元件保留各自的授權與著作權聲明；本專案授權不會取代其條款。隨附的 WebGazer 保留 GPLv3 聲明，jsPsych 保留 MIT 聲明。

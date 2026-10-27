@@ -261,6 +261,44 @@
       return eyes;
     }
 
+    function vorHeadPose(positions) {
+      const points = [33, 263, 10, 152].map(index => positions?.[index]);
+      if (points.some(point => !point || ![0, 1, 2].every(axis => Number.isFinite(point[axis])))) return null;
+      const [rightEye, leftEye, forehead, chin] = points;
+      const horizontal = leftEye.map((value, axis) => value - rightEye[axis]);
+      const vertical = chin.map((value, axis) => value - forehead[axis]);
+      // FaceMesh uses unmirrored camera coordinates: x right, y down, z away from camera.
+      const normal = [
+        vertical[1] * horizontal[2] - vertical[2] * horizontal[1],
+        vertical[2] * horizontal[0] - vertical[0] * horizontal[2],
+        vertical[0] * horizontal[1] - vertical[1] * horizontal[0]
+      ];
+      if (Math.hypot(...normal) < 1e-6) return null;
+      return {
+        yaw: -Math.atan2(normal[0], -normal[2]),
+        pitch: Math.atan2(normal[1], Math.hypot(normal[0], normal[2]))
+      };
+    }
+
+    function vorTargetPoint(pose, neutral, settings, calibration, screenPixels, geometry) {
+      const center = { x: geometry.viewportWidth / 2, y: geometry.viewportHeight / 2 };
+      const gain = Number(settings.vorGain ?? 1);
+      if (gain === 1 || !pose || !neutral) return center;
+      const horizontal = settings.vorAxis !== "vertical";
+      const axis = horizontal ? "x" : "y";
+      const angle = horizontal ? pose.yaw - neutral.yaw : pose.pitch - neutral.pitch;
+      const targetAngle = Math.max(-Math.PI / 2 + 0.001, Math.min(Math.PI / 2 - 0.001, -angle * (gain - 1)));
+      const pixelsPerCm = horizontal ? screenPixels.width / calibration.screenWidthCm : screenPixels.height / calibration.screenHeightCm;
+      const radius = (horizontal ? geometry.targetWidth : geometry.targetHeight) / 2;
+      center[axis] = Math.max(radius, Math.min(2 * center[axis] - radius,
+        center[axis] + calibration.viewingDistanceCm * Math.tan(targetAngle) * pixelsPerCm));
+      return center;
+    }
+
+    function pendingVorHeadTracking() {
+      return AppState.pending?.module === "vor" && Number(AppState.pending.settings.vorGain) > 1;
+    }
+
     if (WEBGAZER_COMPONENTS_AVAILABLE) installMonocularWebGazerModels(window.webgazer);
     const bridgeQuery = new URLSearchParams(window.location.search);
     const bridgeHash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -280,8 +318,8 @@
       vor: {
         code: "VOR",
         name: "Vestibulo-Ocular Reflex",
-        short: "Central target recognition",
-        description: "Keep your gaze on the center target while its color and number change."
+        short: "Head movement and target recognition",
+        description: "Move your head horizontally or vertically while watching the target. Choose 1x for a stationary target or up to 2x for opposite target movement."
       },
       pursuit: {
         code: "PURSUIT",
@@ -328,7 +366,7 @@
     };
 
     const MODULE_DEFAULTS = {
-      vor: { ballArcmin: 60, changeMs: 500, totalSec: 30 },
+      vor: { vorGain: 1, vorAxis: "horizontal", ballArcmin: 60, changeMs: 500, totalSec: 30 },
       pursuit: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, changeMs: 500, speedArcminSec: 300, totalSec: 45, directions: [...ALL_DIRECTIONS] },
       saccade: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, changeMs: 500, dwellMs: 500, totalSec: 45, directions: [...ALL_DIRECTIONS] },
       fixation: { mode: PREDICTABLE, stimulusType: "white_dot", ballArcmin: 60, changeMs: 500, speedArcminSec: 300, holdSec: 2, totalSec: 60, directions: [...ALL_DIRECTIONS] }
@@ -388,6 +426,8 @@
             }
           }
         }
+        if (!Number.isFinite(Number(merged.vor.vorGain)) || Number(merged.vor.vorGain) < 1 || Number(merged.vor.vorGain) > 2) merged.vor.vorGain = 1;
+        if (!["horizontal", "vertical"].includes(merged.vor.vorAxis)) merged.vor.vorAxis = "horizontal";
         return merged;
       } catch (error) {
         return null;
@@ -1625,6 +1665,8 @@
         invalid_geometry: "Target exceeded viewport boundaries",
         eye_tracker_disconnected: "Eye tracker disconnected",
         eye_tracker_unavailable: "Eye tracker unavailable",
+        head_tracking_unavailable: "Head tracking unavailable. Check the camera and look straight ahead before restarting.",
+        head_tracking_lost: "Head tracking lost. Keep your face visible to the camera and restart.",
         fullscreen_required: "Fullscreen is required for training"
       };
       const module = MODULES[session.module] || { code: session.module };
@@ -1803,7 +1845,28 @@
 
       let paramFields = "";
       if (moduleKey === "vor") {
-        paramFields = `${sizeSlider}${thresholdSlider}
+        paramFields = `
+          <div class="field span-all">
+            <div class="slider-card">
+              <div class="slider-card-header">
+                <label class="slider-card-title" for="vor-gain">VOR Multiplier</label>
+                <output class="slider-value-pill" id="val-vor-gain" for="vor-gain">${Number(settings.vorGain ?? 1).toFixed(1)}x</output>
+              </div>
+              <input type="range" class="custom-range-slider" id="vor-gain" name="vorGain"
+                     min="1" max="2" step="0.1" value="${settings.vorGain ?? 1}" aria-describedby="vor-gain-hint">
+              <div class="slider-scale-labels"><span>1x</span><span>1.5x</span><span>2x</span></div>
+            </div>
+            <p class="field-hint" id="vor-gain-hint">1x: target stays at the center. 2x: target moves opposite your head by the same angle. Intermediate values scale the target movement. Above 1x requires a camera, including when eye tracking is Off.</p>
+          </div>
+          <div class="field span-all">
+            <label for="vor-axis">Head Movement Direction</label>
+            <select id="vor-axis" name="vorAxis" aria-describedby="vor-axis-hint" required>
+              <option value="horizontal" ${settings.vorAxis !== "vertical" ? "selected" : ""}>Horizontal (left / right)</option>
+              <option value="vertical" ${settings.vorAxis === "vertical" ? "selected" : ""}>Vertical (up / down)</option>
+            </select>
+            <p class="field-hint" id="vor-axis-hint">Only the selected head rotation controls the target; motion on the other axis is ignored.</p>
+          </div>
+          ${sizeSlider}${thresholdSlider}
           ${changeInterval}
           ${numberField({ id: "total-sec", name: "totalSec", label: "Total Duration (s)", value: settings.totalSec, unit: "sec", hint: "Session stops automatically when completed", step: "0.1" })}`;
       } else if (moduleKey === "saccade") {
@@ -1883,6 +1946,12 @@
       const fields = [...fieldsByModule[moduleKey], "distanceThresholdArcmin"];
       if (!isVor && stimulusType === "numbers_dot") fields.push("changeMs");
       const result = readPositiveNumbers(form, fields);
+      if (isVor) {
+        result.values.vorGain = Number(form.elements.namedItem("vorGain")?.value ?? 1);
+        result.values.vorAxis = form.elements.namedItem("vorAxis")?.value ?? "horizontal";
+        if (!Number.isFinite(result.values.vorGain) || result.values.vorGain < 1 || result.values.vorGain > 2) result.errors.push("VOR Multiplier (1–2x)");
+        if (!["horizontal", "vertical"].includes(result.values.vorAxis)) result.errors.push("Head Movement Direction (horizontal or vertical)");
+      }
       if (result.values.distanceThresholdArcmin < 10 || result.values.distanceThresholdArcmin > hitThresholdMaxArcmin()) {
         result.errors.push(`Hit Distance Threshold (10–${hitThresholdMaxArcmin()} arcmin)`);
       }
@@ -1968,6 +2037,13 @@
         changeInput.disabled = !enabled;
       };
       updateChangeInterval();
+
+      if (isVor) {
+        const gain = form.elements.namedItem("vorGain");
+        gain.addEventListener("input", () => {
+          form.querySelector("#val-vor-gain").textContent = `${Number(gain.value).toFixed(1)}x`;
+        });
+      }
 
       // 1. Stimulus type toggle
       if (!isVor) {
@@ -2132,7 +2208,7 @@
       const stimLabel = stimNames[stimType] || stimType;
       let modeText = "";
       if (moduleKey === "vor") {
-        modeText = `Central target identification · ${settings.values.changeMs} ms / step`;
+        modeText = `${settings.values.vorGain.toFixed(1)}x VOR · ${settings.values.vorAxis === "vertical" ? "Up / down" : "Left / right"} · ${settings.values.changeMs} ms / step`;
       } else {
         const dirCountText = `${dirs.length}/8 directions enabled`;
         if (mode === EVALUATION) {
@@ -2502,6 +2578,10 @@
                 return;
               }
               const eyeTrackingSource = AppState.eyeTracking.source;
+              if (moduleKey === "vor" && result.values.vorGain > 1 && !WEBGAZER_COMPONENTS_AVAILABLE) {
+                setError(error, "VOR above 1x requires the camera tracking component. Reload the application and try again.");
+                return;
+              }
               if (eyeTrackingSource === EYE_SOURCE_TOBII && !AppState.tobii.hardwareCalibrationConfirmed) {
                 setError(error, "Open Eye tracking settings and confirm calibration in Tobii Experience first.");
                 return;
@@ -2705,6 +2785,8 @@
 
       trial(displayElement, trial, onLoad) {
         const extension = this.jsPsych.extensions.webgazer;
+        const headTracking = pendingVorHeadTracking();
+        const headOnly = headTracking && !AppState.pending.eyeTrackingEnabled;
         const startedAt = performance.now();
         let finished = false;
         let faceTimer = null;
@@ -2740,10 +2822,10 @@
               <div class="app-shell" style="max-width:760px">
                 <p class="eyebrow">WebGazer setup</p>
                 <h1>Camera positioning</h1>
-                <p class="lede">Keep your head still and position your face until the camera guide indicates that tracking is ready. The next screen contains the calibration points.</p>
+                <p class="lede">${headTracking ? "Look straight ahead and keep your head still. This position will be the center for VOR head tracking." : "Keep your head still and position your face until the camera guide indicates that tracking is ready. The next screen contains the calibration points."}</p>
                 <div class="webgazer-camera-actions">
-                  <button id="webgazer-camera-continue" class="primary-button" type="button" disabled>Continue to calibration</button>
-                  <button id="webgazer-camera-skip" class="secondary-button" type="button">Continue without eye tracking</button>
+                  <button id="webgazer-camera-continue" class="primary-button" type="button" disabled>${headOnly ? "Start VOR training" : "Continue to calibration"}</button>
+                  <button id="webgazer-camera-skip" class="secondary-button" type="button">${headTracking ? "Cancel training" : "Continue without eye tracking"}</button>
                 </div>
               </div>
             </section>`;
@@ -2754,6 +2836,10 @@
           const updateFaceState = () => {
             let detected = false;
             try { detected = Boolean(extension.faceDetected()); } catch (error) { detected = false; }
+            if (headTracking) {
+              const tracker = window.webgazer?.getTracker?.();
+              detected = Boolean(vorHeadPose(tracker?.getPositions?.())) && performance.now() - tracker.positionsTimestamp < 500;
+            }
             continueButton.disabled = !detected;
           };
           continueButton.addEventListener("click", () => finish(true));
@@ -2771,9 +2857,9 @@
               <div class="app-shell" style="max-width:760px">
                 <p class="eyebrow">WebGazer setup</p>
                 <h1>Eye tracking unavailable</h1>
-                <p class="lede">The camera could not be initialized. You can continue this training session without eye tracking.</p>
+                <p class="lede">${headTracking ? "VOR above 1x needs the camera for head tracking. Check camera access and try again, or select 1x for a stationary target." : "The camera could not be initialized. You can continue this training session without eye tracking."}</p>
                 <div class="webgazer-camera-actions">
-                  <button id="webgazer-camera-fallback" class="primary-button" type="button">Continue without eye tracking</button>
+                  <button id="webgazer-camera-fallback" class="primary-button" type="button">${headTracking ? "Return to menu" : "Continue without eye tracking"}</button>
                 </div>
               </div>
             </section>`;
@@ -3644,6 +3730,12 @@
         `# Viewing Distance: ${round(calibration.viewingDistanceCm, 2)} cm`,
         `# Stimulus Type: ${(STIMULUS_TYPES[stimulusType] && STIMULUS_TYPES[stimulusType].name) || stimulusType}`,
         `# Stimulus Size: ${round(ballArcmin, 2)} arcmin (${(ballArcmin / 60).toFixed(2)} deg)`,
+        ...(moduleKey === "vor" ? [
+          `# VOR Multiplier: ${settings.vorGain ?? 1}x`,
+          `# VOR Direction: ${settings.vorAxis === "vertical" ? "Vertical (up/down)" : "Horizontal (left/right)"}`,
+          `# VOR Target Motion: opposite head rotation x (multiplier - 1); clipped to screen edges`,
+          `# VOR Head Angle Source: ${Number(settings.vorGain) > 1 ? "Camera FaceMesh estimate relative to starting pose" : "Not required (stationary target)"}`
+        ] : []),
         ...(moduleKey !== "vor" && (moduleKey === "saccade" || settings.horizontalSpanArcmin || settings.verticalSpanArcmin) ? [
           `# Horizontal Target Span: ${round(targetSpanLayout(moduleKey, settings, calibration, screenPixels).horizontalArcmin, 2)} arcmin (left-to-right target centers)`,
           `# Vertical Target Span: ${round(targetSpanLayout(moduleKey, settings, calibration, screenPixels).verticalArcmin, 2)} arcmin (top-to-bottom target centers)`
@@ -3794,6 +3886,7 @@
         const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
         const usesTobii = eyeTracking.source === EYE_SOURCE_TOBII;
         const usesWebGazer = eyeTracking.source === EYE_SOURCE_WEBGAZER;
+        const usesHeadTracking = moduleKey === "vor" && Number(settings.vorGain) > 1;
         const usesGazeTracking = usesTobii || usesWebGazer;
         let activeTrialCapture = null;
         if (usesTobii) activeTrialCapture = beginTobiiTrial(sessionId);
@@ -3873,6 +3966,7 @@
         displayElement.innerHTML = `
           <section id="training-stage" class="training-stage" role="application" aria-label="${module.code} ${module.name} training in progress">
             <div id="training-stimulus" class="stimulus"><span id="stimulus-number" class="stimulus-number"></span></div>
+            ${usesHeadTracking ? '<p id="vor-head-status" role="status" style="position:absolute;top:24px;left:24px;right:24px;text-align:center">Look straight ahead while head tracking starts.</p>' : ""}
             <span class="sr-only">Training has started. Press Escape to stop.</span>
           </section>`;
 
@@ -3901,6 +3995,17 @@
         }
         const center = { x: geometry.viewportWidth / 2, y: geometry.viewportHeight / 2 };
         const currentCenter = { x: center.x, y: center.y };
+        let neutralHeadPose = null;
+        let currentHeadPose = null;
+        const headTrackingStartedAt = performance.now();
+        const readHeadPose = () => {
+          const tracker = window.webgazer?.getTracker?.();
+          if (!Number.isFinite(tracker?.positionsTimestamp) || performance.now() - tracker.positionsTimestamp > 500) return null;
+          return vorHeadPose(tracker.getPositions?.());
+        };
+        if (usesHeadTracking && !usesWebGazer) {
+          try { this.jsPsych.extensions.webgazer?.resume(); } catch (error) { /* Startup checks report unavailable tracking. */ }
+        }
 
         const thresholdDetails = gazeThresholds(eyeTracking.source, settings);
         const thresholdDeg = thresholdDetails.effectiveDeg;
@@ -4148,7 +4253,7 @@
             try { unsubscribeWebgazer(); } catch (e) {}
             unsubscribeWebgazer = null;
           }
-          if (usesWebGazer && window.webgazer) {
+          if ((usesWebGazer || usesHeadTracking) && window.webgazer) {
             try { window.webgazer.pause(); } catch (e) {}
           }
           const gazeCapture = usesTobii
@@ -4325,7 +4430,6 @@
           lastVorColor = color;
           lastVorDigit = digit;
           showNumbersDot(color, digit);
-          setPosition(center);
           logEvent("vor_change", now, {
             index,
             planned_ms: round(index * settings.changeMs, 3),
@@ -4413,6 +4517,15 @@
         };
 
         const tickVor = (now) => {
+          if (usesHeadTracking) {
+            const pose = readHeadPose();
+            if (!pose) {
+              endTrial("head_tracking_lost");
+              return;
+            }
+            currentHeadPose = pose;
+          }
+          setPosition(vorTargetPoint(currentHeadPose, neutralHeadPose, settings, calibration, screenPixels, geometry));
           const dueIndex = Math.floor((now - sessionStart) / settings.changeMs);
           if (dueIndex > vorIndex) updateVor(dueIndex, now);
         };
@@ -4521,6 +4634,18 @@
 
         const startSession = (now) => {
           if (ended) return;
+          if (usesHeadTracking) {
+            neutralHeadPose = readHeadPose();
+            if (!neutralHeadPose) {
+              if (now - headTrackingStartedAt >= 10000) endTrial("head_tracking_unavailable");
+              else rafId = requestAnimationFrame(startSession);
+              return;
+            }
+            currentHeadPose = neutralHeadPose;
+            const headStatus = displayElement.querySelector("#vor-head-status");
+            if (headStatus) headStatus.hidden = true;
+            logEvent("vor_head_center", now, { yaw_rad: neutralHeadPose.yaw, pitch_rad: neutralHeadPose.pitch });
+          }
           refreshViewportGeometry();
           sessionStart = now;
           // Fullscreen and dynamic viewport units can emit resize events after
@@ -4875,6 +5000,10 @@
     const tobiiTrainingTrial = makeTrainingTrial(EYE_SOURCE_TOBII);
 
     function fallBackToUntrackedSession(reason) {
+      if (pendingVorHeadTracking()) {
+        AppState.lastSession = { module: "vor", end_reason: "head_tracking_unavailable", actual_duration_ms: 0 };
+        AppState.pending = null;
+      }
       if (AppState.pending) {
         AppState.pending.eyeTrackingEnabled = false;
         AppState.pending.eyeTrackingSource = EYE_SOURCE_OFF;
@@ -4912,7 +5041,7 @@
               }
             }
           }],
-          conditional_function: () => !AppState.eyeTracking.initialized
+          conditional_function: () => !AppState.eyeTracking.initialized || pendingVorHeadTracking()
         },
         {
           timeline: [
@@ -4985,8 +5114,7 @@
       ],
       conditional_function: () => Boolean(
         AppState.pending &&
-        AppState.pending.eyeTrackingEnabled &&
-        AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER
+        ((AppState.pending.eyeTrackingEnabled && AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER) || pendingVorHeadTracking())
       )
     } : { timeline: [], conditional_function: () => false };
 
