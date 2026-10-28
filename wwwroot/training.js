@@ -5148,7 +5148,7 @@
             AppState.pending.eyeTrackingSource === EYE_SOURCE_TOBII &&
             AppState.tobii.connected &&
             AppState.tobii.hardwareCalibrationConfirmed &&
-            (!AppState.tobii.validated || AppState.tobii.needsRevalidation)
+            (AppState.pending.module === "vor" || !AppState.tobii.validated || AppState.tobii.needsRevalidation)
           )
         }
       ],

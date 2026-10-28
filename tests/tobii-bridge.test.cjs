@@ -8,7 +8,7 @@ const root = path.resolve(__dirname, "..");
 const appSource = fs.readFileSync(path.join(root, "wwwroot/training.js"), "utf8");
 const desktopAdapter = fs.readFileSync(path.join(root, "wwwroot/desktop.js"), "utf8");
 
-function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false, saveError = null, storage = new Map() } = {}) {
+function loadApp({ native = true, connected = true, injectedClient = null, clockRoundTrips = [], hostClockOriginMs = 0, clockError = false, saveError = null, storage = new Map(), webgazerAvailable = false } = {}) {
   const timers = new Map();
   const frames = new Map();
   const handlers = new Map();
@@ -54,6 +54,8 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
     setTimeout: schedule, clearTimeout: id => timers.delete(id),
     setInterval: schedule, clearInterval: id => timers.delete(id),
     TobiiBridge: injectedClient,
+    ...(webgazerAvailable ? { webgazer: fakeWebGazer(), jsPsychExtensionWebgazer: class {},
+      jsPsychWebgazerInitCamera: class {}, jsPsychWebgazerCalibrate: class {} } : {}),
     ...(native ? { __TAURI__: {
       event: { listen: async (name, handler) => { handlers.set(name, handler); return () => handlers.delete(name); } },
       core: { invoke: async (command, args) => {
@@ -67,7 +69,7 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       } }
     } } : {})
   };
-  const jsPsych = { extensions: {}, run() {}, data: { addProperties() {} },
+  const jsPsych = { extensions: {}, run(timeline) { this.timeline = timeline; }, data: { addProperties() {} },
     pluginAPI: { getKeyboardResponse(options) { jsPsych.keyboardResponse = options.callback_function; }, cancelKeyboardResponse() {},
       clearAllTimeouts() {}, setTimeout: schedule }, finishTrial() {} };
   const context = vm.createContext({ window, document, localStorage: window.localStorage,
@@ -564,6 +566,78 @@ function faceMeshPose(yawDeg = 0, pitchDeg = 0) {
       240 + y * Math.cos(pitch), -x * Math.sin(yaw) + z * Math.cos(yaw)];
   }
   return mesh;
+}
+
+for (const source of ["tobii", "webgazer"]) {
+  for (const vorGain of [1, 2]) {
+    test(`VOR ${vorGain}x with ${source} validates again before recording gaze points`, async () => {
+      const app = loadApp({ webgazerAvailable: true });
+      const state = app.api.AppState;
+      state.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+      state.pending = { module: "vor", settings: { vorGain }, eyeTrackingSource: source,
+        eyeTrackingEnabled: source === "webgazer", fullscreenEntered: true };
+      Object.assign(state.tobii, { connected: true, hardwareCalibrationConfirmed: true, validated: true });
+      Object.assign(state.eyeTracking, { source, initialized: true, calibrated: true,
+        lastValidation: { source, dynamicThresholdDeg: 8 } });
+      const [, webgazerSetup, webgazerTraining, tobiiSetup, tobiiTraining] = app.jsPsych.timeline[1].timeline;
+      const setup = source === "tobii" ? tobiiSetup : webgazerSetup;
+      const validationNode = source === "tobii" ? setup.timeline[0] : setup.timeline[1].timeline[1];
+      assert.equal(setup.conditional_function(), true);
+      assert.equal(validationNode.conditional_function(), true, "a previous validation cannot skip VOR validation");
+
+      let onGaze;
+      app.jsPsych.extensions.webgazer = {
+        hideVideo() {}, hidePredictions() {}, resume() {}, pause() {},
+        onGazeUpdate: callback => { onGaze = callback; return () => {}; }
+      };
+      const buttons = new Map();
+      const display = { innerHTML: "", querySelector: selector => {
+        if (!display.innerHTML.includes(`data-val-action="${selector.match(/'([^']+)'/)?.[1]}"`)) return null;
+        return { addEventListener: (_, callback) => buttons.set(selector, callback) };
+      } };
+      let validationResult;
+      app.jsPsych.finishTrial = value => { validationResult = value; };
+      new validationNode.timeline[0].type(app.jsPsych).trial(display, {});
+      let sampleIndex = 0;
+      for (const [x, y] of [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
+        app.runTimer(350);
+        for (let i = 0; i < 3; i++) {
+          if (source === "tobii") app.emit(gaze(x, y, true, ++sampleIndex * 30000));
+          else onGaze({ x: x * 1920, y: y * 1080 });
+        }
+        app.runTimer(1050);
+      }
+      assert.match(display.innerHTML, /Validation passed/);
+      await buttons.get("[data-val-action='proceed']")();
+      assert.equal(validationResult.mean_error_deg, 0);
+      assert.equal(state.eyeTracking.lastValidation.dynamicThresholdDeg, 0.5);
+      const training = source === "tobii" ? tobiiTraining : webgazerTraining;
+      assert.equal(training.conditional_function(), true);
+      assert.equal(training.timeline[0].eye_tracking().source, source);
+
+      let positions = faceMeshPose();
+      const tracker = { positionsTimestamp: 1000, getPositions: () => positions };
+      app.window.webgazer.getTracker = () => tracker;
+      const finish = startTraining(app, source, { settings: { vorGain } });
+      positions = faceMeshPose(10, 0);
+      app.setNow(1030);
+      app.runFrame();
+      if (source === "tobii") app.emit(gaze(0.5, 0.5, true, 1000000));
+      else onGaze({ x: 960, y: 540, sample_performance_ms: 1030 });
+      const result = finish();
+      const [sample] = JSON.parse(result.gaze_path);
+      assert.equal(result.gaze_sample_count, 1, "validation samples must not enter the training record");
+      assert.equal(sample.x, 960);
+      assert.equal(sample.y, 540);
+      assert.equal(result.validation_threshold_deg, 0.5);
+      const [row] = csvRows(app);
+      assert.equal(row.gaze_x_px, "960");
+      assert.equal(row.gaze_y_px, "540");
+      assert.equal(Number(row.device_timestamp_us), source === "tobii" ? 1000000 : 1030000);
+      if (vorGain === 2) assert.ok(Number(row.stimulus_x_px) < 960, "head movement must move the recorded target");
+      else assert.equal(row.stimulus_x_px, "960");
+    });
+  }
 }
 
 test("VOR multiplier and axis validate, persist and upgrade existing settings", () => {
