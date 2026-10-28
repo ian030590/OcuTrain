@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod analysis;
 mod storage;
 mod tobii;
 
@@ -87,14 +88,18 @@ fn main() {
             get_clock,
             save_document,
             open_data_folder,
-            set_fullscreen
+            set_fullscreen,
+            analysis::open_analysis,
+            analysis::list_analysis_files,
+            analysis::read_analysis_file,
+            analysis::save_analysis_report
         ])
         .setup(|app| {
             app.manage(Tracker::start(app.handle().clone()));
             Ok(())
         })
         .on_window_event(|window, event| {
-            if matches!(
+            if window.label() == "main" && matches!(
                 event,
                 tauri::WindowEvent::Moved(_)
                     | tauri::WindowEvent::Resized(_)

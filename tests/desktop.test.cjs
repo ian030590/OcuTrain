@@ -64,6 +64,19 @@ test("document saving awaits native completion and propagates a write failure", 
   await assert.rejects(saving, /Access denied/);
 });
 
+test("analysis links open the embedded analysis window instead of navigating the training page", async () => {
+  const calls = [];
+  const app = desktop(async command => { calls.push(command); });
+  let prevented = false;
+  app.domListeners.get("click")({ target: { closest: selector => selector === "[data-open-analysis]" ? {} : null },
+    preventDefault() { prevented = true; } });
+  await new Promise(setImmediate);
+  assert.equal(prevented, true);
+  assert.deepEqual(calls, ["open_analysis"]);
+  app.domListeners.get("click")({ target: { closest: () => null }, preventDefault() { throw new Error("Unrelated navigation was intercepted"); } });
+  assert.deepEqual(calls, ["open_analysis"]);
+});
+
 test("training waits for native fullscreen and exit restores the window", async () => {
   const calls = [];
   let finish;

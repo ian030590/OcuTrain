@@ -26,6 +26,7 @@
     async GetClockJson() { return JSON.stringify(await invoke("get_clock")); },
     SaveCsv(filename, content) { return invoke("save_document", { filename, content }); },
     OpenDataFolder() { return invoke("open_data_folder"); },
+    OpenAnalysis() { return invoke("open_analysis"); },
     async FullscreenReady() {
       // fullscreenchange may be delivered after requestFullscreen's promise resolves.
       await new Promise(resolve => window.requestAnimationFrame(resolve));
@@ -33,6 +34,13 @@
       await new Promise(resolve => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
     }
   };
+  document.addEventListener("click", event => {
+    if (!event.target.closest?.("[data-open-analysis]")) return;
+    event.preventDefault();
+    window.OcuTrainDesktop.OpenAnalysis().catch(error => {
+      window.alert(`Could not open analysis: ${error}`);
+    });
+  });
   // WebView2's DOM fullscreen state and the native window must change together.
   document.addEventListener("fullscreenchange", () => {
     fullscreenChange = fullscreenChange.catch(() => {}).then(() => invoke("set_fullscreen", { fullscreen: Boolean(document.fullscreenElement) }));

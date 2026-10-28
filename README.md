@@ -33,6 +33,14 @@
 
 ## 模組與指標
 
+### 個人表現分析
+
+點選初始設定或主選單上方的 **Analysis**，在獨立視窗比較同一受試者跨日期、跨模組的任務表現。分析會自動讀取 EXE 旁的 `Data/`，也可批次匯入其他資料夾的 CSV／JSON；僅在本機處理，不修改原始紀錄。
+
+可篩選受試者、日期、模組、追蹤來源與方向，查看時間加權的平均偏差、離散程度 SD₂D、RMSE 及命中率。不同刺激設定及追蹤來源分開；命中率額外依實際門檻分組。八方向複視以真正填答時間去重，沿用問卷不算新量測，「無複視」不當成 0°。摘要可匯出至 `Data/Analysis/`。
+
+分析程式、入口與測試獨立維護於 [modules/analysis/](modules/analysis/README.md)，建置時自動內嵌同一個 EXE。舊 JSON 缺少逐筆目標座標時只能顯示原有摘要，方向誤差需搭配同次 CSV。詳細格式與公式見分析模組說明。
+
 | 模組 | 刺激流程 | Accuracy 計分 |
 | --- | --- | --- |
 | VOR | 1–2x 倍數，選擇左右／上下頭動；目標持續變換顏色與數字 | 有效追蹤時間 |
@@ -106,6 +114,7 @@ npm run test:native
 - [wwwroot/desktop.js](wwwroot/desktop.js)：Tauri 事件與命令橋接。
 - [wwwroot/training.js](wwwroot/training.js)：校正、刺激、計分、TFF 與匯出。
 - [tests/](tests/)：追蹤橋接、時間對齊、計分與 WebGazer 執行測試。
+- [modules/analysis/](modules/analysis/)：獨立的資料解析、跨日期與方向分析、圖表入口及測試；由 `scripts/prepare-analysis.cjs` 準備內嵌資源。
 - [產品與技術規格](PRD_TRD_眼動訓練系統.md)：參數與計算細節。
 
 ## 版本與授權
@@ -119,5 +128,7 @@ Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git ta
 `v1.6.2` 將 validation 後的 Effective Hit Threshold 改為小於 6° 綠色、6° 至未滿 8° 黃色、8° 起紅色；VOR 移動目標加入 50ms 時間常數的平滑處理，以減少 2x 左右／上下移動時的抖動。
 
 `v1.7.0` 恢復 Tobii 來源選單、硬體校正確認、重新驗證與即時資料狀態；CSV／JSON 分開標記無效追蹤及未觀測時段，`blink_sec` 改為 `null`，避免把追蹤失敗解釋為眨眼。
+
+`v1.8.0` 新增內嵌的個人表現分析視窗，分析程式於 `modules/analysis/` 獨立維護，可比較跨日期的角度誤差、命中率及八方向複視紀錄。
 
 本專案採用 **GNU Affero General Public License v3.0（AGPL-3.0）**，完整條文見 [LICENSE](LICENSE)。第三方函式庫、模型及 Tobii 元件保留各自的授權與著作權聲明；本專案授權不會取代其條款。隨附的 WebGazer 保留 GPLv3 聲明，jsPsych 保留 MIT 聲明。

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="referrer" content="no-referrer">
+  <title>OcuTrain | 個人表現分析</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div><p class="brand">OcuTrain / Analysis</p><h1>個人表現分析</h1><p class="muted">從每次訓練，看見跨日期的變化。</p></div>
+      <div class="actions">
+        <button id="refresh" data-import type="button">讀取 Data 資料夾</button>
+        <button id="import-files" data-import type="button">匯入 CSV／JSON</button>
+        <button id="import-folder" data-import type="button">匯入資料夾</button>
+      </div>
+      <input id="files" type="file" accept=".csv,.json" multiple hidden>
+      <input id="folder" type="file" webkitdirectory multiple hidden>
+    </header>
+    <p id="load-status" role="status" aria-live="polite">可直接讀取 EXE 旁的 Data，或匯入其他日期的紀錄。資料只在本機分析。</p>
+    <div id="error" role="alert" hidden></div>
+    <details id="import-issues" hidden><summary id="issues-title"></summary><ul id="issues-list"></ul></details>
+    <section class="person-filters" aria-label="受試者與日期篩選">
+      <label class="subject-field">受試者<select id="subject" disabled><option value="">先載入紀錄</option></select></label>
+      <label>開始日期<input id="from" type="date" disabled></label>
+      <label>結束日期<input id="to" type="date" disabled></label>
+      <button id="reset-dates" type="button" disabled>全部日期</button>
+    </section>
+    <p id="person-summary" class="muted"></p>
+    <div id="empty" class="empty-state"><h2>先載入訓練紀錄</h2><p>選取 Data 資料夾，或一次匯入多份 CSV／JSON。相同測驗不會重複計入。</p></div>
+    <div id="results" hidden>
+      <section class="analysis-section" aria-labelledby="task-title">
+        <div class="section-heading"><div><h2 id="task-title">任務表現趨勢</h2><p class="muted">角度誤差越小代表越接近目標；命中率須在相同門檻下比較。</p></div><button id="export-task" type="button">匯出任務摘要</button></div>
+        <div class="task-filters">
+          <label>訓練模組<select id="module"><option value="all">全部模組</option><option value="vor">VOR</option><option value="pursuit">Smooth Pursuit</option><option value="fixation">Fixation</option><option value="saccade">Saccade</option></select></label>
+          <label>追蹤來源<select id="source"><option value="all">全部來源（分開顯示）</option></select></label>
+          <label>方向<select id="direction"><option value="all">全部方向</option></select></label>
+          <label>趨勢指標<select id="metric"><option value="rmse_deg">追蹤誤差 RMSE（°）</option><option value="sd_deg">離散程度 SD₂D（°）</option><option value="bias_deg">平均偏差大小（°）</option><option value="mean_error_deg">平均距離誤差（°）</option><option value="hit_rate">命中率（%）</option></select></label>
+          <label>彙整方式<select id="group"><option value="date">同日加權彙整</option><option value="session">每次測驗</option></select></label>
+          <label class="checkbox"><input id="completed" type="checkbox" checked>僅顯示正常完成測驗</label>
+        </div>
+        <div id="task-chart" class="chart"></div>
+        <p class="chart-note">連線分開不同模組、追蹤來源及刺激設定。命中率另外依實際門檻分組；同日混用門檻時不合併顯示百分比。</p>
+        <div id="task-table" class="table-scroll" tabindex="0" aria-label="任務趨勢數值表"></div>
+      </section>
+      <section class="analysis-section" aria-labelledby="direction-title">
+        <div class="section-heading"><div><h2 id="direction-title">各方向的注視追蹤表現</h2><p class="muted">依訓練方向整理；追隨含去程與回程，注視僅含端點停留，跳視排除前 200 ms。</p></div><label>比較日期<select id="direction-date"></select></label></div>
+        <div id="direction-table" class="table-scroll" tabindex="0" aria-label="各方向視覺準確度數值表"></div>
+        <p class="chart-note">選擇上方「方向」可查看該方向跨日期的趨勢。VOR 1x 為中央目標；移動 VOR 依當時目標位置分方向。</p>
+      </section>
+      <section class="analysis-section" aria-labelledby="diplopia-title">
+        <div class="section-heading"><div><h2 id="diplopia-title">八方向複視角度</h2><p class="muted">依實際填答時間跨模組整理；沿用問卷只計一次。</p></div><button id="export-diplopia" type="button">匯出複視摘要</button></div>
+        <label class="compact-filter">顯示方向<select id="diplopia-direction"><option value="all">八方向</option></select></label>
+        <div id="diplopia-chart" class="chart"></div>
+        <p class="chart-note">角度以正前方為 0°。「無複視」表示測試範圍內未出現複視，保留文字狀態，圖上不當成 0°。日期依本機時區顯示。</p>
+        <div id="diplopia-table" class="table-scroll" tabindex="0" aria-label="複視角度紀錄表"></div>
+      </section>
+      <details class="methods"><summary>計算方式與資料限制</summary>
+        <p>將每筆有效 gaze 與同一來源時間的目標座標換成螢幕視角，再計算水平與垂直差值。右、上為正。偏差為加權平均誤差；SD₂D 為水平與垂直誤差變異量相加後開根號；RMSE 為兩軸誤差平方和的加權平均再開根號。</p>
+        <p>使用原始 Accuracy 的有效計分時間作權重。同日彙整累加時間與誤差統計量，不平均各次百分比。沒有時間權重的舊資料採樣本加權，分開比較；沒有逐筆目標資料的 JSON 只提供已記錄摘要。</p>
+        <p>命中率沿用原始命中旗標；角度誤差以兩軸視角差重算，與舊版單一距離換算法可能不同。</p>
+        <p>這些是任務表現描述，包含受試者行為與儀器誤差，不等於儀器校正精度或視力表結果。缺資料不當成眨眼；不補值或增加前後排除窗。</p>
+        <ul id="data-notes"></ul>
+      </details>
+    </div>
+  </main>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

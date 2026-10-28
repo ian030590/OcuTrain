@@ -1483,6 +1483,7 @@
       return `
         <header class="topbar">
           <div class="brand">OCULOMOTOR TRAINING</div>
+          <a class="secondary-button" href="analysis/index.html" target="_blank" rel="noopener" data-open-analysis>Analysis</a>
           <div class="patient-notice">Authorized visual rehabilitation training system.</div>
         </header>`;
     }
@@ -3779,9 +3780,11 @@
         `# Test Time: ${isoTime}`,
         `# Training Module: ${moduleName} (${moduleCode})`,
         `# Test Mode: ${settings.mode === EVALUATION ? "Evaluation" : settings.mode === RANDOM ? "Random" : "Predictable"}`,
+        `# Module Settings: ${JSON.stringify(settings)}`,
         `# Display Physical Width: ${round(calibration.screenWidthCm, 2)} cm`,
         `# Display Physical Height: ${round(calibration.screenHeightCm, 2)} cm`,
         `# Screen Resolution: ${screenPixels.width} x ${screenPixels.height} px`,
+        `# Viewport Size: ${geometry.viewportWidth} x ${geometry.viewportHeight} px`,
         `# Viewing Distance: ${round(calibration.viewingDistanceCm, 2)} cm`,
         `# Stimulus Type: ${(STIMULUS_TYPES[stimulusType] && STIMULUS_TYPES[stimulusType].name) || stimulusType}`,
         `# Stimulus Size: ${round(ballArcmin, 2)} arcmin (${(ballArcmin / 60).toFixed(2)} deg)`,

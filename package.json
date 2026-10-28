@@ -1,12 +1,13 @@
 {
   "name": "ocutrain",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build --no-bundle && node scripts/package-portable.cjs",
-    "test": "node --test tests/*.test.cjs",
+    "prepare:analysis": "node scripts/prepare-analysis.cjs",
+    "test": "node scripts/prepare-analysis.cjs && node --test tests/*.test.cjs modules/analysis/tests/*.test.cjs",
     "test:native": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
