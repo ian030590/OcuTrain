@@ -71,9 +71,11 @@
 * 物理距離換算公式：
   $$\theta_{arcmin} = 2 \times \arctan\left(\frac{S_{cm}}{2 \times D_{cm}}\right) \times \frac{180 \times 60}{\pi}$$
 
-### 2.3 眨眼與失焦過濾：分母完全剔除
-* 在所有時序積分中，當眼動儀訊號無效（眨眼、脫離追蹤範圍），該段時長 $T_{blink}$ **嚴格從眼動正確率的分母剔除**。
-* 此標準在 Tobii 與 WebGazer 下完全統一。
+### 2.3 無效追蹤與缺資料標記
+* 無效注視樣本不納入 Accuracy 的有效計分時間，但無效原因可能是眨眼、頭動或追蹤失敗，不能僅依有效性確認眨眼。目前沒有眼瞼或瞳孔訊號的 blink 偵測器，`blink_sec` 為 `null`，CSV 顯示 N/A。
+* Tobii 與 WebGazer 共用來源時間區段標記：樣本狀態延續至下一筆樣本，間隔超過 100 ms 時整段標為 `missing_samples`；首筆之前、末筆之後及完全無樣本的記錄標為 `unobserved_boundary`。其餘無效區段標為 `invalid_gaze`，原因均為 `unknown`。
+* `gaze_data_loss` 輸出逐段起訖與時長；`invalid_gaze_sec` 為無效區段時長，`gaze_missing_duration_ms` 為未觀測區段總時長。區段品質統計與按模組階段計算的 Accuracy 時間權重分開，不外推記錄首尾的狀態。
+* 維持現有有效樣本計分，不插補或加上前後 75 ms 排除窗。100 ms 是程式的長缺口判準，不是 guideline 指定的 blink 定義。
 
 ### 2.4 階層跳視 (Saccade) 200ms 生理潛伏期補償窗
 * 跳視模組在目標刺激物躍遷出現後的最初 200ms 內，屬於大腦傳遞神經訊號之生理潛伏期（Saccadic Latency）。
@@ -129,7 +131,7 @@
 無論使用者選擇 **Tobii** 還是 **WebGazer**，底層評分計算邏輯完全相同：
 - 同樣的歐氏距離視角換算。
 - 同樣的時序黎曼積分 ($\Delta t_k = t_k - t_{k-1}$，異常值限制於 100ms 內)。
-- 同樣的眨眼扣除分母機制。
+- 同樣的無效樣本排除與資料遺失區段標記。
 - 同樣的 200ms 跳視潛伏容許窗。
 - 同樣的同步時序欄位、模組階段規則、TFF 分類及單一 CSV 輸出。
 

@@ -1239,7 +1239,7 @@ test("TFF does not count the fixation carried over from the previous target", ()
   assert.ok(records.every(record => record.is_fixation === 1));
 });
 
-test("TFF requires 100 ms of uninterrupted valid fixation and does not interpolate blinks or gaps", () => {
+test("TFF requires 100 ms of uninterrupted valid fixation and does not interpolate invalid samples or gaps", () => {
   for (const interruption of [[300, 0.65, false], [370, 0.65]]) {
     const { result } = fixationAnalysis([
       [100, 0.5], [140, 0.5], [180, 0.65], [220, 0.65], [260, 0.65], interruption,
@@ -1273,7 +1273,7 @@ test("TFF retains a separate N/A outcome for targets without valid samples", () 
   assert.equal(result.targets[0].status, "no_valid_samples");
 });
 
-test("native samples drive scoring and CSV export, with blinks excluded", () => {
+test("native samples drive scoring and CSV export without calling invalid gaze a blink", () => {
   const app = loadApp();
   const finish = startTraining(app);
   app.setNow(1030.3);
@@ -1286,10 +1286,87 @@ test("native samples drive scoring and CSV export, with blinks excluded", () => 
   assert.equal(result.accuracy_rate, 50);
   assert.equal(result.gaze_sample_count, 3);
   assert.ok(result.valid_sec > 0);
-  assert.ok(result.blink_sec > 0);
+  assert.equal(result.blink_sec, null);
+  assert.equal(result.gaze_data_loss.invalid_sample_count, 1);
+  assert.equal(result.gaze_data_loss.blink_detection, "unavailable");
   assert.match(app.savedCsvs[0].filename, /_Tobii_gaze_record\.csv$/);
   assert.match(app.savedCsvs[0].content, /Gaze Accuracy Rate: 50 %/);
   assert.match(app.savedCsvs[0].content, /Total Gaze Samples: 3/);
+  assert.match(app.savedCsvs[0].content, /Blink Duration: N\/A/);
+  assert.doesNotMatch(app.savedCsvs[0].content, /Blink Duration \(Excluded\)/);
+});
+
+for (const source of ["tobii", "webgazer"]) {
+  test(`${source} loss intervals follow source time and distinguish invalid gaze from unobserved gaps`, () => {
+    const app = loadApp();
+    app.api.AppState.tobii.clockOffsetMs = 0;
+    let onGaze;
+    app.jsPsych.extensions.webgazer = { onGazeUpdate: callback => { onGaze = callback; return () => {}; } };
+    const finish = startTraining(app, source);
+    for (const [time, valid] of [[10, true], [20, false], [40, false], [70, true], [400, true]]) {
+      app.setNow(1500 + time);
+      if (source === "tobii") app.emit(gaze(valid ? 0.5 : null, valid ? 0.5 : null, valid, (1000 + time) * 1000));
+      else onGaze({ x: valid ? 960 : null, y: valid ? 540 : null, sample_performance_ms: 1000 + time });
+    }
+    app.setNow(2000);
+    const result = finish();
+    const loss = result.gaze_data_loss;
+    assert.equal(result.blink_sec, null);
+    assert.equal(result.invalid_gaze_sec, 0.05);
+    assert.equal(result.gaze_missing_duration_ms, 940);
+    assert.equal(loss.invalid_sample_count, 2);
+    assert.equal(loss.gap_threshold_ms, 100);
+    assert.deepEqual(JSON.parse(JSON.stringify(loss.intervals)), [
+      { kind: "unobserved_boundary", start_ms: 0, end_ms: 10, duration_ms: 10, cause: "unknown" },
+      { kind: "invalid_gaze", start_ms: 20, end_ms: 70, duration_ms: 50, cause: "unknown" },
+      { kind: "missing_samples", start_ms: 70, end_ms: 400, duration_ms: 330, cause: "unknown" },
+      { kind: "unobserved_boundary", start_ms: 400, end_ms: 1000, duration_ms: 600, cause: "unknown" }
+    ]);
+    assert.equal(result.accuracy_rate, 100);
+    const csv = app.savedCsvs[0].content;
+    const exported = JSON.parse(csv.split(/\r?\n/).find(line => line.startsWith("# Gaze Data Loss: ")).slice("# Gaze Data Loss: ".length));
+    assert.deepEqual(exported, JSON.parse(JSON.stringify(loss)));
+    assert.match(csv, /no interpolation or surrounding-sample exclusion/);
+  });
+}
+
+test("an invalid sample cannot extend across a long gap or imply a measured blink at the recording end", () => {
+  const app = loadApp();
+  app.api.AppState.tobii.clockOffsetMs = 0;
+  const finish = startTraining(app);
+  for (const [time, valid] of [[10, false], [20, false], [400, false], [430, true], [500, false]]) {
+    app.setNow(1000 + time);
+    app.emit(gaze(valid ? 0.5 : null, valid ? 0.5 : null, valid, (1000 + time) * 1000));
+  }
+  app.setNow(2000);
+  const result = finish();
+  assert.equal(result.invalid_gaze_sec, 0.04);
+  assert.equal(result.blink_sec, null);
+  const intervals = result.gaze_data_loss.intervals;
+  assert.equal(intervals.filter(interval => interval.kind === "invalid_gaze").length, 2);
+  assert.equal(intervals.find(interval => interval.kind === "missing_samples").duration_ms, 380);
+  assert.equal(intervals.at(-1).kind, "unobserved_boundary");
+  assert.equal(intervals.at(-1).start_ms, 500);
+  assert.equal(intervals.at(-1).end_ms, 1000);
+});
+
+test("empty tracked recordings report an unobserved interval while Off has no loss or blink measurement", () => {
+  for (const source of ["tobii", "webgazer", "off"]) {
+    const app = loadApp();
+    const finish = startTraining(app, source);
+    app.setNow(1500);
+    const result = finish();
+    assert.equal(result.blink_sec, null);
+    if (source === "off") {
+      assert.equal(result.gaze_data_loss, null);
+      assert.equal(result.invalid_gaze_sec, null);
+      assert.equal(result.gaze_missing_duration_ms, null);
+    } else {
+      assert.equal(result.gaze_data_loss.invalid_sample_count, 0);
+      assert.equal(result.gaze_missing_duration_ms, 500);
+      assert.equal(result.gaze_data_loss.intervals[0].kind, "unobserved_boundary");
+    }
+  }
 });
 
 test("no samples, all invalid samples and untracked sessions report N/A", () => {
@@ -1480,8 +1557,9 @@ test("missing samples are excluded instead of counting an entire gap as fixation
   app.setNow(1550); app.emit(gaze(0.5, 0.5, true, 1530000));
   const capture = app.api.AppState.tobii.activeTrial;
   assert.ok(capture.totalValidMs < 61);
-  assert.ok(capture.missingDurationMs > 469);
-  assert.equal(finish().accuracy_rate, 100);
+  const result = finish();
+  assert.equal(result.accuracy_rate, 100);
+  assert.equal(result.gaze_data_loss.intervals.find(interval => interval.kind === "missing_samples").duration_ms, 500);
 });
 
 test("a camera validation threshold cannot carry over to a Tobii assessment", () => {
@@ -1747,7 +1825,7 @@ test("WebGazer exports each eye's gaze, error and left-minus-right disparity", (
   app.setNow(1060);
   onGaze(null);
   const result = finish();
-  const [sample, blink] = csvRows(app);
+  const [sample, invalid] = csvRows(app);
   assert.equal(sample.right_eye_valid, "1");
   assert.equal(sample.right_gaze_x_px, "940");
   assert.equal(sample.left_gaze_y_px, "520");
@@ -1757,9 +1835,9 @@ test("WebGazer exports each eye's gaze, error and left-minus-right disparity", (
   assert.equal(Number(sample.eye_disparity_v_deg), degreesForCm(20 * 30 / 1080));
   assert.equal(sample.stimulus_h_deg, "0");
   assert.equal(sample.right_eye_origin_x_mm, "");
-  assert.equal(blink.right_eye_valid, "0");
-  assert.equal(blink.right_gaze_x_px, "");
-  assert.equal(blink.eye_disparity_deg, "");
+  assert.equal(invalid.right_eye_valid, "0");
+  assert.equal(invalid.right_gaze_x_px, "");
+  assert.equal(invalid.eye_disparity_deg, "");
   assert.match(app.savedCsvs[0].content, /Per-Eye Gaze Source: separate single-eye WebGazer models/);
   assert.match(app.savedCsvs[0].content, /Per-Eye Samples Matched: 2 \/ 2/);
   assert.equal(result.per_eye.source, "webgazer_single_eye_ridge");

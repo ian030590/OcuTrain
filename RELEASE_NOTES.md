@@ -1,3 +1,15 @@
+# 1.7.0
+
+- 恢復初始設定及 Eye tracking 對話框的 Tobii Eye Tracker 5 選項、Tobii Experience 硬體校正確認與五點重新驗證控制；主選單顯示連線、接收筆數與有效注視狀態。
+- 無效注視不再記成眨眼：JSON 保留 `blink_sec` 欄位但改為 `null`，CSV 的 Blink Duration 顯示 N/A。目前未提供依眼瞼或瞳孔訊號運作的 blink 偵測器。
+- 新增 `invalid_gaze_sec` 與 `gaze_data_loss`，依來源時間（無來源時間時採接收時間）保留無效區段、超過 100ms 的缺樣本區段及記錄首尾未觀測區段的起訖、時長與未知原因。
+- `gaze_missing_duration_ms` 改為完整未觀測區段時長，包含長缺口與記錄首尾，不再使用計分時對長缺口的截短時間估計。資料品質區段與 Accuracy 計分時間分開，保留現有計分、TFF 及周邊有效樣本；不插補，也不加入前後 75ms 排除窗。
+- 118 項 JavaScript 測試全部通過。Tobii 介面瀏覽器檢查使用模擬原生事件，涵蓋校正確認、來源切換、五點驗證、訓練與 CSV 儲存。Windows 建置、Rust 測試及執行檔啟動檢查由發布工作流程執行。
+
+Windows x64 免安裝版：`OcuTrain_1.7.0_x64-portable.exe`（需 Microsoft Edge WebView2 Runtime）。
+
+請關閉舊程式後執行新版本；沿用相同受試者 ID。分析程式需接受 `blink_sec` 為 `null`；舊版此欄不能解釋為實測眨眼時長。Off 模式的資料品質欄位為 `null`。100ms 是程式的長缺口判準，不是 guideline 的眨眼定義。本次未新增離散指標或 blink 偵測，亦未以實體 Tobii／攝影機驗證量測品質。
+
 # 1.6.2
 
 - Validation 結果的 Effective Hit Threshold 依實際有效閾值分色：小於 6° 為綠色、6° 至未滿 8° 為黃色、8° 起為紅色；Tobii 與 WebGazer 均適用。

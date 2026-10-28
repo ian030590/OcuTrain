@@ -70,6 +70,9 @@ TFF 使用注視的開始時間，不包含等待確認的時間，也不受 Acc
 - 原始 CSV 自動儲存於執行檔旁的 `Data/`，檔名包含受試者代碼、日期、模組與追蹤來源。
 - CSV 包含原始視線、刺激座標、誤差、階段與時間戳。Fixation 移動途中等未計分資料仍會保留。
 - `accuracy_eligible` 表示樣本當下階段是否可計分；`accuracy_delta_t_ms` 是該有效樣本實際計入的時間。`is_within_threshold` 僅代表空間命中，不能以命中樣本比例取代 Accuracy。
+- 無效注視不等於眨眼。目前沒有依眼瞼開合或瞳孔訊號運作的 blink 偵測器，因此 JSON 的 `blink_sec` 保留為 `null`，CSV 顯示 N/A；舊版此欄實際累計的是無效追蹤時間，不能解釋為眨眼時長。
+- `gaze_data_loss` 在 JSON 與 CSV 註解中保留無效樣本數及逐段 `start_ms`／`end_ms`／`duration_ms`，時間以 `trial_time_ms` 為準（有來源時間戳時採來源時間，否則為接收時間）。樣本狀態延續至下一筆樣本；間隔超過 100 ms 時，整段標記為 `missing_samples`；第一筆之前、最後一筆之後及完全沒有資料的記錄標記為 `unobserved_boundary`。其餘無效區段為 `invalid_gaze`，所有遺失原因均標為 `unknown`。
+- `invalid_gaze_sec` 是上述無效區段時長；`gaze_missing_duration_ms` 是未觀測區段總時長，包含長缺口及記錄首尾。這是資料品質的區段估計，與 Accuracy 按模組階段積分的 `valid_sec` 不同，亦不是以原生取樣率計算的遺失樣本百分比。100 ms 是本程式的長缺口判準，不是 guideline 規定的眨眼門檻；不插補資料，也不額外排除缺口前後 75 ms 的樣本。
 - Saccade 另輸出 `gaze_velocity_deg_s`、`is_fixation`、`tff_ms` 及逐目標摘要。CSV 使用 UTF-8 BOM，方便 Excel 開啟。
 - 左右眼分開記錄：`right_*` 為受試者右眼（OD），`left_*` 為左眼（OS）；`stimulus_h_deg`／`stimulus_v_deg` 為目標相對畫面中心的角度（右、上為正）。
   - WebGazer：以同一次九點校正另外訓練左眼、右眼各自的模型，輸出每眼注視點（`*_gaze_x_px`／`*_gaze_y_px`）、每眼與目標的誤差（`*_error_deg`），以及左眼減右眼的分離角度（`eye_disparity_h_deg`／`eye_disparity_v_deg`／`eye_disparity_deg`；水平正值代表左眼注視點在右眼注視點的右側，即交叉方向）。單眼估計的雜訊比雙眼合併的注視點大，建議以中心位置的分離角度作為同一次測驗的基準。
@@ -114,5 +117,7 @@ Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git ta
 `v1.6.0` 新增 VOR 1–2x 倍數、左右／上下方向及攝影機頭部角度控制。
 
 `v1.6.2` 將 validation 後的 Effective Hit Threshold 改為小於 6° 綠色、6° 至未滿 8° 黃色、8° 起紅色；VOR 移動目標加入 50ms 時間常數的平滑處理，以減少 2x 左右／上下移動時的抖動。
+
+`v1.7.0` 恢復 Tobii 來源選單、硬體校正確認、重新驗證與即時資料狀態；CSV／JSON 分開標記無效追蹤及未觀測時段，`blink_sec` 改為 `null`，避免把追蹤失敗解釋為眨眼。
 
 本專案採用 **GNU Affero General Public License v3.0（AGPL-3.0）**，完整條文見 [LICENSE](LICENSE)。第三方函式庫、模型及 Tobii 元件保留各自的授權與著作權聲明；本專案授權不會取代其條款。隨附的 WebGazer 保留 GPLv3 聲明，jsPsych 保留 MIT 聲明。

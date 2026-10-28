@@ -213,6 +213,7 @@
     const FIXATION_VELOCITY_DEG_SEC = 30;
     const FIXATION_MIN_DURATION_MS = 100;
     const FIXATION_MAX_GAP_MS = 100;
+    const GAZE_DATA_GAP_MS = 100;
     const WEBGAZER_COMPONENTS_AVAILABLE = Boolean(
       window.webgazer &&
       window.jsPsychExtensionWebgazer &&
@@ -1247,6 +1248,50 @@
       }
     }
 
+    function gazeDataLossSummary(records, durationMs) {
+      const samples = records.filter(record => Number.isFinite(record.trial_time_ms) &&
+        record.trial_time_ms >= 0 && record.trial_time_ms <= durationMs);
+      const intervals = [];
+      const addInterval = (kind, start, end) => {
+        const startMs = round(start, 3);
+        const endMs = round(end, 3);
+        if (endMs <= startMs) return;
+        const last = intervals[intervals.length - 1];
+        if (last && last.kind === kind && last.end_ms === startMs) {
+          last.end_ms = endMs;
+          last.duration_ms = round(endMs - last.start_ms, 3);
+        } else {
+          intervals.push({ kind, start_ms: startMs, end_ms: endMs,
+            duration_ms: round(endMs - startMs, 3), cause: "unknown" });
+        }
+      };
+      let previous = null;
+      for (const sample of samples) {
+        if (!previous) {
+          addInterval("unobserved_boundary", 0, sample.trial_time_ms);
+        } else if (sample.trial_time_ms - previous.trial_time_ms > GAZE_DATA_GAP_MS) {
+          addInterval("missing_samples", previous.trial_time_ms, sample.trial_time_ms);
+        } else if (!previous.gaze_valid) {
+          addInterval("invalid_gaze", previous.trial_time_ms, sample.trial_time_ms);
+        }
+        previous = sample;
+      }
+      // Do not extrapolate the last observed state through an unobserved recording boundary.
+      addInterval("unobserved_boundary", previous?.trial_time_ms ?? 0, durationMs);
+      return {
+        time_reference: "trial_time_ms (source time when available)",
+        method: "sample_state_until_next_sample; long gaps and recording boundaries unobserved",
+        gap_threshold_ms: GAZE_DATA_GAP_MS,
+        blink_detection: "unavailable",
+        invalid_sample_count: samples.filter(sample => !sample.gaze_valid).length,
+        invalid_duration_ms: round(intervals.filter(interval => interval.kind === "invalid_gaze")
+          .reduce((sum, interval) => sum + interval.duration_ms, 0), 3),
+        unobserved_duration_ms: round(intervals.filter(interval => interval.kind !== "invalid_gaze")
+          .reduce((sum, interval) => sum + interval.duration_ms, 0), 3),
+        intervals
+      };
+    }
+
     function beginTobiiTrial(sessionId) {
       AppState.tobii.activeTrial = {
         sessionId,
@@ -1258,10 +1303,8 @@
         downsampled: 0,
         overflow: 0,
         lastSampleTsUs: null,
-        totalBlinkMs: 0,
         totalValidMs: 0,
         totalInThreshMs: 0,
-        missingDurationMs: 0,
         rejectedTimestampSamples: 0,
         synchronousRecords: [],
         eyeSamples: [],
@@ -1274,7 +1317,7 @@
       const active = AppState.tobii.activeTrial;
       AppState.tobii.activeTrial = null;
       if (!active || active.sessionId !== sessionId) {
-        return { samples: [], downsampled: 0, overflow: 0, synchronousRecords: [], totalBlinkMs: 0, totalValidMs: 0, totalInThreshMs: 0, accuracyRate: null };
+        return { samples: [], downsampled: 0, overflow: 0, synchronousRecords: [], totalValidMs: 0, totalInThreshMs: 0, accuracyRate: null };
       }
       const validMs = active.totalValidMs || 0;
       const inThreshMs = active.totalInThreshMs || 0;
@@ -1297,11 +1340,9 @@
           total_records: active.synchronousRecords.length,
           stream_error: AppState.tobii.eyePositionError
         },
-        totalBlinkMs: round(active.totalBlinkMs || 0, 2),
         totalValidMs: round(validMs, 2),
         totalInThreshMs: round(inThreshMs, 2),
         clockUncertaintyMs: active.clockUncertaintyMs,
-        missingDurationMs: round(active.missingDurationMs, 2),
         rejectedTimestampSamples: active.rejectedTimestampSamples,
         accuracyRate: accRate
       };
@@ -1316,10 +1357,8 @@
         downsampled: 0,
         overflow: 0,
         lastSampleTsUs: null,
-        totalBlinkMs: 0,
         totalValidMs: 0,
         totalInThreshMs: 0,
-        missingDurationMs: 0,
         rejectedTimestampSamples: 0,
         synchronousRecords: [],
         onSample: null
@@ -1331,7 +1370,7 @@
       const active = AppState.webgazerActiveTrial;
       AppState.webgazerActiveTrial = null;
       if (!active || active.sessionId !== sessionId) {
-        return { samples: [], downsampled: 0, overflow: 0, synchronousRecords: [], totalBlinkMs: 0, totalValidMs: 0, totalInThreshMs: 0, accuracyRate: null };
+        return { samples: [], downsampled: 0, overflow: 0, synchronousRecords: [], totalValidMs: 0, totalInThreshMs: 0, accuracyRate: null };
       }
       const validMs = active.totalValidMs || 0;
       const inThreshMs = active.totalInThreshMs || 0;
@@ -1347,10 +1386,8 @@
           matched_records: active.synchronousRecords.filter(record => record.eyes).length,
           total_records: active.synchronousRecords.length
         },
-        totalBlinkMs: round(active.totalBlinkMs || 0, 2),
         totalValidMs: round(validMs, 2),
         totalInThreshMs: round(inThreshMs, 2),
-        missingDurationMs: round(active.missingDurationMs || 0, 2),
         rejectedTimestampSamples: active.rejectedTimestampSamples || 0,
         accuracyRate: accRate
       };
@@ -1480,9 +1517,15 @@
                       <select id="initial-eye-tracking-source" name="eyeTrackingSource">
                         <option value="off" selected>Off</option>
                         <option value="webgazer" ${AppState.eyeTracking.available ? "" : "disabled"}>WebGazer (camera)</option>
+                        <option value="tobii" ${AppState.tobii.configured ? "" : "disabled"}>Tobii Eye Tracker 5</option>
                       </select>
                     </div>
-                    <p class="option-note">WebGazer uses camera positioning and nine-point calibration, featuring a 5-point validation step that dynamically calibrates the hit threshold.</p>
+                    <p id="initial-tobii-status" class="option-note" role="status" hidden></p>
+                    <p class="option-note">WebGazer uses camera positioning and nine-point calibration. Tobii uses the participant's hardware calibration in Tobii Experience. Both use 5-point gaze validation before tracked training.</p>
+                    <label class="option-row" for="initial-tobii-calibrated">
+                      <input id="initial-tobii-calibrated" name="tobiiCalibrated" type="checkbox" disabled>
+                      <span>I confirm that this participant was calibrated in Tobii Experience</span>
+                    </label>
                     <p id="calibration-error" class="form-error" role="alert"></p>
                     <div class="form-actions">
                       <p class="safety-note">Set browser zoom to 100%. Press ESC immediately if the participant feels dizzy or uncomfortable.</p>
@@ -1810,7 +1853,7 @@
             <input id="threshold-arcmin" name="distanceThresholdArcmin" data-label="Hit Distance Threshold (arcmin)" type="number" min="10" max="${thresholdMax}" step="1" inputmode="decimal" value="${currentThreshArcmin}" required>
             <span class="unit">' (arcmin)</span>
           </div>
-          <p class="field-hint">Scoring tolerance around the target center. This does not move the target. WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
+          <p class="field-hint">Scoring tolerance around the target center. This does not move the target. Tobii adds ${TOBII_ERROR_ALLOWANCE_DEG}°; WebGazer adds ${WEBGAZER_ERROR_ALLOWANCE_DEG}°. A larger 5-point validation threshold takes precedence.</p>
         </div>`;
 
       let spanSliders = "";
@@ -2298,6 +2341,7 @@
               </div>
               ${subjectIdBar(subjectId)}
               ${calibrationStrip(AppState.calibration)}
+              <p id="tobii-live-status" class="option-note" role="status" ${AppState.eyeTracking.source === EYE_SOURCE_TOBII ? "" : "hidden"}>${escapeHtml(tobiiStatusText())}</p>
               ${sessionBanner(AppState.lastSession)}
               <div class="module-grid">${moduleCards()}</div>
             </div>
@@ -2308,7 +2352,7 @@
               <ol>
                 <li>Set browser zoom to 100%. Seat the participant directly in front of the screen at the configured viewing distance.</li>
                 <li>Select a module, enter the settings, and choose Start. The browser will enter fullscreen when permitted.</li>
-                <li>Eye tracking is optional. WebGazer uses camera positioning and nine-point calibration.</li>
+                <li>Eye tracking is optional. WebGazer uses camera positioning and nine-point calibration. Tobii uses the participant's hardware calibration in Tobii Experience.</li>
                 <li>The pointer is hidden during training. Press ESC at any time to stop and return to the menu.</li>
                 <li>Evaluation follows a fixed sequence. Predictable and Random modes stop at the configured total duration.</li>
               </ol>
@@ -2335,12 +2379,21 @@
                   <select id="eye-tracking-source" name="eyeTrackingSource">
                     <option value="off" ${AppState.eyeTracking.source === EYE_SOURCE_OFF ? "selected" : ""}>Off</option>
                     <option value="webgazer" ${AppState.eyeTracking.source === EYE_SOURCE_WEBGAZER ? "selected" : ""} ${AppState.eyeTracking.available ? "" : "disabled"}>WebGazer (camera)</option>
+                    <option value="tobii" ${AppState.eyeTracking.source === EYE_SOURCE_TOBII ? "selected" : ""} ${AppState.tobii.configured ? "" : "disabled"}>Tobii Eye Tracker 5</option>
                   </select>
                 </div>
                 <p id="eye-tracking-source-note" class="option-note"></p>
                 <label class="option-row" for="webgazer-recalibrate">
                   <input id="webgazer-recalibrate" name="webgazerRecalibrate" type="checkbox" ${AppState.eyeTracking.calibrationRequested ? "checked" : ""}>
                   <span>Run WebGazer calibration before the next training session</span>
+                </label>
+                <label class="option-row" for="tobii-calibrated">
+                  <input id="tobii-calibrated" name="tobiiCalibrated" type="checkbox" ${AppState.tobii.hardwareCalibrationConfirmed ? "checked" : ""}>
+                  <span>I confirm that this participant was calibrated in Tobii Experience</span>
+                </label>
+                <label class="option-row" for="tobii-revalidate">
+                  <input id="tobii-revalidate" name="tobiiRevalidate" type="checkbox" ${AppState.tobii.needsRevalidation ? "checked" : ""}>
+                  <span>Run 5-point gaze validation before the next Tobii training session</span>
                 </label>
                 <p id="eye-tracking-status" class="option-note"></p>
                 <p id="eye-tracking-error" class="form-error" role="alert"></p>
@@ -3688,7 +3741,7 @@
 
       const totalValidMs = gazeCapture.totalValidMs || 0;
       const totalInThreshMs = gazeCapture.totalInThreshMs || 0;
-      const totalBlinkMs = gazeCapture.totalBlinkMs || 0;
+      const dataLoss = gazeCapture.dataLoss;
       const accuracyRate = gazeCapture.accuracyRate != null ? `${gazeCapture.accuracyRate} %` : "N/A (no valid gaze)";
       const records = gazeCapture.synchronousRecords || [];
       const tff = trialData.tff;
@@ -3749,7 +3802,8 @@
         `# Validation Threshold (2x Mean Error): ${thresholdDetails.validationDeg ?? "N/A"} deg`,
         `# Total Test Duration: ${(actualDurationMs / 1000).toFixed(2)} s`,
         `# Valid Gaze Duration (Denominator): ${(totalValidMs / 1000).toFixed(2)} s`,
-        `# Blink Duration (Excluded): ${(totalBlinkMs / 1000).toFixed(2)} s`,
+        `# Invalid Gaze Duration (Unknown Cause): ${dataLoss ? (dataLoss.invalid_duration_ms / 1000).toFixed(3) + " s" : "N/A (untracked)"}`,
+        `# Blink Duration: N/A (no eyelid or pupil-based blink detector; invalid gaze is not a confirmed blink)`,
         `# On-Target Duration (Numerator): ${(totalInThreshMs / 1000).toFixed(2)} s`,
         `# Gaze Accuracy Rate: ${accuracyRate}`,
         `# Accuracy Definition: On-target duration / valid gaze duration (not hardware calibration accuracy)`,
@@ -3764,7 +3818,9 @@
         ] : []),
         `# Sample Timing Reference: ${eyeTrackingSource === EYE_SOURCE_WEBGAZER ? "WebGazer inference start on the browser performance clock (camera exposure timestamp unavailable); transport_delay_ms measures inference-start to callback delay, excluding camera capture and filtering delay" : eyeTrackingSource === EYE_SOURCE_TOBII ? "Tobii device timestamp mapped to the browser performance clock when synchronized" : "N/A (untracked)"}`,
         `# Clock Sync Estimated Uncertainty (half RTT): ${gazeCapture.clockUncertaintyMs != null ? round(gazeCapture.clockUncertaintyMs, 3) + " ms" : eyeTrackingSource === EYE_SOURCE_WEBGAZER ? "N/A (same browser performance clock; camera capture delay not measured)" : "N/A (browser receipt time)"}`,
-        `# Excluded Missing-Sample Duration: ${((gazeCapture.missingDurationMs || 0) / 1000).toFixed(3)} s`,
+        `# Unobserved Gaze Duration (Gaps and Recording Boundaries): ${dataLoss ? (dataLoss.unobserved_duration_ms / 1000).toFixed(3) + " s" : "N/A (untracked)"}`,
+        `# Data Loss Timing: current sample state until the next sample; gaps > ${GAZE_DATA_GAP_MS} ms and recording boundaries unobserved; no interpolation or surrounding-sample exclusion; reported durations are separate from phase-specific accuracy weights`,
+        `# Gaze Data Loss: ${JSON.stringify(dataLoss ?? null)}`,
         `# Rejected Duplicate/Out-of-Order Timestamps: ${gazeCapture.rejectedTimestampSamples || 0}`,
         `# Enabled Directions: ${selectedDirectionLabels.join(", ") || "All"}`,
         `# Completed Targets: ${completedTargets}`,
@@ -4048,7 +4104,6 @@
             }
             if (!frame) return;
             const effectiveDeltaMs = Math.min(deltaMs > 100 ? 1000 / 33 : deltaMs, trialTime);
-            if (deltaMs > 100) active.missingDurationMs = (active.missingDurationMs || 0) + deltaMs - effectiveDeltaMs;
             const isSaccadeLatency = moduleKey === "saccade" && frame.phase === "dwell" && trialTime - frame.phase_started_ms < 200;
             const eligibleStart = accuracyPhaseStart(moduleKey, frame);
             const accuracyEligible = eligibleStart !== null && trialTime >= eligibleStart;
@@ -4059,9 +4114,7 @@
             let distPx = null;
             let distDeg = null;
 
-            if (!sample.valid) {
-              active.totalBlinkMs += effectiveDeltaMs;
-            } else {
+            if (sample.valid) {
               const dx = sample.x - frame.stimulus_center_x;
               const dy = sample.y - frame.stimulus_center_y;
               distPx = Math.hypot(dx, dy);
@@ -4263,7 +4316,10 @@
             ? finishTobiiTrial(sessionId)
             : usesWebGazer
               ? finishWebGazerTrial(sessionId)
-              : { samples: [], downsampled: 0, overflow: 0, synchronousRecords: [], totalBlinkMs: 0, totalValidMs: 0, totalInThreshMs: 0, accuracyRate: null };
+              : { samples: [], downsampled: 0, overflow: 0, synchronousRecords: [], totalValidMs: 0, totalInThreshMs: 0, accuracyRate: null };
+          gazeCapture.dataLoss = usesGazeTracking
+            ? gazeDataLossSummary(gazeCapture.synchronousRecords || [], sessionStart === null ? 0 : endedAt - sessionStart)
+            : null;
           if (usesTobii && injectedBridgeClient && injectedBridgeClient.connectionState === "ready") {
             void injectedBridgeClient.stop().catch((error) => {
               AppState.tobii.lastError = error && error.message ? error.message : "Could not stop the Tobii Bridge provider after the trial.";
@@ -4321,7 +4377,9 @@
             } : {}),
             in_threshold_sec: round((gazeCapture.totalInThreshMs || 0) / 1000, 2),
             valid_sec: round((gazeCapture.totalValidMs || 0) / 1000, 2),
-            blink_sec: round((gazeCapture.totalBlinkMs || 0) / 1000, 2),
+            blink_sec: null,
+            invalid_gaze_sec: gazeCapture.dataLoss ? round(gazeCapture.dataLoss.invalid_duration_ms / 1000, 3) : null,
+            gaze_data_loss: gazeCapture.dataLoss,
             threshold_deg: thresholdDeg,
             threshold_setting_deg: thresholdDetails.baseDeg,
             tracker_error_allowance_deg: thresholdDetails.allowanceDeg,
@@ -4348,7 +4406,7 @@
             gaze_downsampled_count: gazeCapture.downsampled || 0,
             gaze_overflow_count: gazeCapture.overflow || 0,
             gaze_rejected_timestamp_count: gazeCapture.rejectedTimestampSamples || 0,
-            gaze_missing_duration_ms: gazeCapture.missingDurationMs || 0,
+            gaze_missing_duration_ms: gazeCapture.dataLoss?.unobserved_duration_ms ?? null,
             per_eye: gazeCapture.perEye || null,
             viewport: { width: geometry.viewportWidth, height: geometry.viewportHeight },
             screen_pixels: { ...screenPixels },
