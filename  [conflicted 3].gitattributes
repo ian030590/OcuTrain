@@ -1,3 +1,0 @@
-# Keep recorded verification artifacts byte-for-byte across checkouts.
-analysis/ocutrain/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
-analysis/ocutrain/**/*.xml -diff
