@@ -1,6 +1,6 @@
 [package]
 name = "ocutrain"
-version = "1.6.1"
+version = "1.6.2"
 description = "OcuTrain eye movement training"
 authors = ["OcuTrain contributors"]
 license = "AGPL-3.0-only"

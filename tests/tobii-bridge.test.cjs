@@ -634,6 +634,8 @@ for (const source of ["tobii", "webgazer"]) {
       assert.equal(row.gaze_x_px, "960");
       assert.equal(row.gaze_y_px, "540");
       assert.equal(Number(row.device_timestamp_us), source === "tobii" ? 1000000 : 1030000);
+      const renderedX = Number(finish.stimulus.style.transform.match(/-?[\d.]+(?=px)/)[0]) + Number.parseFloat(finish.stimulus.style.width) / 2;
+      assert.ok(Math.abs(Number(row.stimulus_x_px) - renderedX) < 0.01, "record the displayed smoothed position for scoring");
       if (vorGain === 2) assert.ok(Number(row.stimulus_x_px) < 960, "head movement must move the recorded target");
       else assert.equal(row.stimulus_x_px, "960");
     });
@@ -700,6 +702,60 @@ test("VOR uses head rotation rather than translation and converts opposite angle
 });
 
 for (const vorAxis of ["horizontal", "vertical"]) {
+  test(`VOR 2x ${vorAxis} smooths camera steps and jitter without moving the other axis`, () => {
+    const app = loadApp();
+    let positions = faceMeshPose();
+    const tracker = { positionsTimestamp: 1000, getPositions: () => positions };
+    app.window.webgazer = { getTracker: () => tracker, pause() {} };
+    app.jsPsych.extensions.webgazer = { resume() {} };
+    const finish = startTraining(app, "off", { settings: { vorGain: 2, vorAxis, totalSec: 4 } });
+    const horizontal = vorAxis === "horizontal";
+    const coordinate = () => {
+      const [x, y] = finish.stimulus.style.transform.match(/-?[\d.]+(?=px)/g).map(Number);
+      return horizontal ? { active: x, fixed: y } : { active: y, fixed: x };
+    };
+    const initial = coordinate();
+    const frame = (time, angle, fresh = true) => {
+      if (fresh) {
+        positions = faceMeshPose(horizontal ? angle : 10, horizontal ? 10 : angle);
+        tracker.positionsTimestamp = time;
+      }
+      app.setNow(time);
+      app.runFrame();
+      const point = coordinate();
+      assert.ok(Math.abs(point.fixed - initial.fixed) < 1e-9, "the other axis must remain fixed");
+      return point.active;
+    };
+    const first = frame(1016, 5);
+    const betweenSamples = frame(1032, 5, false);
+    assert.ok(betweenSamples < first, "render frames must move smoothly between camera samples");
+    const settled = frame(1400, 5);
+    assert.ok(settled < betweenSamples);
+    const raw = [];
+    const smoothed = [];
+    for (let i = 1; i <= 40; i++) {
+      const angle = 5 + (i % 2 ? 0.2 : -0.2);
+      smoothed.push(frame(1400 + i * 1000 / 30, angle));
+      raw.push(-60 * Math.tan(angle * Math.PI / 180) * (horizontal ? 1920 / 53 : 1080 / 30));
+    }
+    const range = values => Math.max(...values) - Math.min(...values);
+    assert.ok(range(smoothed.slice(10)) < range(raw) * 0.4, "steady camera jitter must be attenuated by at least 60%");
+    let previous = smoothed.at(-1);
+    for (let i = 1; i <= 12; i++) {
+      const angle = 5 + i / 3 + (i % 2 ? 0.2 : -0.2);
+      const moving = frame(1400 + (40 + i) * 1000 / 30, angle);
+      assert.ok(moving < previous, "noise must not reverse a deliberate forward movement");
+      previous = moving;
+    }
+    const forward = frame(3200, 10);
+    const reversing = frame(3233, -10);
+    assert.ok(reversing > forward, "intentional direction changes must respond on the next frame");
+    const final = frame(3700, -10);
+    const target = initial.active + 60 * Math.tan(10 * Math.PI / 180) * (horizontal ? 1920 / 53 : 1080 / 30);
+    assert.ok(Math.abs(final - target) < 0.1, "smoothing must converge to the calibrated 2x position");
+    finish();
+  });
+
   test(`VOR ${vorAxis} updates every frame, ignores other-axis noise and retains position across color changes`, () => {
     const app = loadApp();
     let positions = faceMeshPose();
@@ -719,7 +775,9 @@ for (const vorAxis of ["horizontal", "vertical"]) {
     assert.equal(frame(1100, vorAxis === "vertical" ? 10 : 0, vorAxis === "horizontal" ? 10 : 0), initial);
     const moved = frame(1200, 10, 10);
     assert.notEqual(moved, initial);
-    assert.equal(frame(1500, 10, 10), moved, "a number/color change must not snap back to center");
+    const recolored = frame(1500, 10, 10);
+    const activeCoordinate = transform => Number(transform.match(/-?[\d.]+(?=px)/g)[vorAxis === "horizontal" ? 0 : 1]);
+    assert.ok(activeCoordinate(recolored) <= activeCoordinate(moved), "a number/color change must not snap back to center");
     const result = finish();
     assert.equal(result.settings.vorGain, 2);
     assert.equal(result.settings.vorAxis, vorAxis);
@@ -1527,42 +1585,56 @@ for (const { name, settings, validation, expectedDeg } of [
   });
 }
 
-test("WebGazer validation displays the same effective threshold used for scoring", async () => {
-  for (const [errorDeg, expectedDeg] of [[1, 3.5], [2, 4]]) {
-    const app = loadApp();
-    app.api.AppState.eyeTracking.source = "webgazer";
-    app.api.AppState.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
-    app.api.AppState.pending = { eyeTrackingSource: "webgazer", settings: { distanceThresholdArcmin: 90 } };
-    let onGaze;
-    let paused = false;
-    let unsubscribed = false;
-    app.jsPsych.extensions.webgazer = {
-      hideVideo() {}, hidePredictions() {}, resume() {}, pause() { paused = true; },
-      onGazeUpdate: callback => { onGaze = callback; return () => { unsubscribed = true; }; }
-    };
-    const buttons = new Map();
-    const display = { innerHTML: "", querySelector: selector => {
-      if (!display.innerHTML.includes(`data-val-action="${selector.match(/'([^']+)'/)?.[1]}"`)) return null;
-      return { addEventListener: (_, callback) => buttons.set(selector, callback) };
-    } };
-    new app.api.GazeValidationPlugin(app.jsPsych).trial(display, {});
-    assert.equal(app.frames.size, 0, "Validation must consume the existing gaze stream without polling");
-    for (const [xRatio, yRatio] of [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
-      app.runTimer(350);
-      const dxPx = (gazeWithErrorDeg(errorDeg).x - 0.5) * 1920;
-      for (let i = 0; i < 3; i++) onGaze({ x: Math.round(1920 * xRatio) + dxPx, y: Math.round(1080 * yRatio) });
-      app.runTimer(1050);
+for (const source of ["tobii", "webgazer"]) {
+  test(`${source} validation colors the effective scoring threshold at the 6 and 8 degree boundaries`, async () => {
+    for (const [errorDeg, expectedDeg, expectedClass] of [[1, source === "tobii" ? 2.5 : 3.5, "pass"], [2, 4, "pass"],
+      [2.99, 5.98, "pass"], [3, 6, "warning"],
+      [3.5, 7, "warning"], [3.99, 7.98, "warning"], [4, 8, "fail"], [4.01, 8.02, "fail"]]) {
+      const app = loadApp();
+      app.api.AppState.eyeTracking.source = source;
+      app.api.AppState.calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 });
+      app.api.AppState.pending = { eyeTrackingSource: source, settings: { distanceThresholdArcmin: 90 } };
+      let onGaze;
+      let paused = false;
+      let unsubscribed = false;
+      app.jsPsych.extensions.webgazer = {
+        hideVideo() {}, hidePredictions() {}, resume() {}, pause() { paused = true; },
+        onGazeUpdate: callback => { onGaze = callback; return () => { unsubscribed = true; }; }
+      };
+      const buttons = new Map();
+      const display = { innerHTML: "", querySelector: selector => {
+        if (!display.innerHTML.includes(`data-val-action="${selector.match(/'([^']+)'/)?.[1]}"`)) return null;
+        return { addEventListener: (_, callback) => buttons.set(selector, callback) };
+      } };
+      new app.api.GazeValidationPlugin(app.jsPsych).trial(display, {});
+      assert.equal(app.frames.size, 0, "Validation must consume the existing gaze stream without polling");
+      for (const [xRatio, yRatio] of [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
+        app.runTimer(350);
+        const dxPx = (gazeWithErrorDeg(errorDeg).x - 0.5) * 1920;
+        for (let i = 0; i < 3; i++) {
+          const x = Math.round(1920 * xRatio) + dxPx;
+          const y = Math.round(1080 * yRatio);
+          if (source === "tobii") app.emit(gaze(x / 1920, y / 1080, true, i * 30000));
+          else onGaze({ x, y });
+        }
+        app.runTimer(1050);
+      }
+      assert.ok(display.innerHTML.includes(`Effective Hit Threshold (includes ${source === "tobii" ? 1 : 2}° allowance)`));
+      assert.ok(display.innerHTML.includes(`${expectedDeg}° (${expectedDeg * 60}')`));
+      assert.match(display.innerHTML, new RegExp(`Effective Hit Threshold[^<]*</span>\\s*<span class="webgazer-validate-stat-value ${expectedClass}">`));
+      if (errorDeg <= (source === "tobii" ? 3 : 3.5)) {
+        assert.ok(display.innerHTML.includes(`Effective hit threshold: ${expectedDeg}°`));
+      }
+      if (source === "webgazer") {
+        assert.equal(paused, true);
+        assert.equal(unsubscribed, true);
+      }
+      await buttons.get("[data-val-action='proceed']")();
+      assert.equal(app.api.AppState.eyeTracking.lastValidation.dynamicThresholdDeg, errorDeg * 2);
+      assert.equal(startTraining(app, source)().threshold_deg, expectedDeg);
     }
-    assert.match(display.innerHTML, /Effective Hit Threshold \(includes 2° allowance\)/);
-    assert.ok(display.innerHTML.includes(`${expectedDeg}° (${expectedDeg * 60}')`));
-    assert.ok(display.innerHTML.includes(`Effective hit threshold: ${expectedDeg}°`));
-    assert.equal(paused, true);
-    assert.equal(unsubscribed, true);
-    await buttons.get("[data-val-action='proceed']")();
-    assert.equal(app.api.AppState.eyeTracking.lastValidation.dynamicThresholdDeg, errorDeg * 2);
-    assert.equal(startTraining(app, "webgazer")().threshold_deg, expectedDeg);
-  }
-});
+  });
+}
 
 test("untracked sessions do not receive a tracker measurement allowance", () => {
   const app = loadApp();

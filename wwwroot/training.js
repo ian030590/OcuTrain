@@ -3055,6 +3055,8 @@
           const dynamicThresholdDeg = hasEnoughData ? round(Math.max(0.5, meanErrorDeg * 2), 2) : null;
           const thresholdPreview = gazeThresholds(activeSource, AppState.pending?.settings || {}, { source: activeSource, dynamicThresholdDeg });
           const effectiveThresholdArcmin = round(thresholdPreview.effectiveDeg * 60, 1);
+          const effectiveThresholdClass = !hasEnoughData || thresholdPreview.effectiveDeg >= 8
+            ? "fail" : thresholdPreview.effectiveDeg >= 6 ? "warning" : "pass";
 
           const isCalibrateOnly = Boolean(AppState.pending && AppState.pending.calibrateOnly);
           const sourceName = isTobii ? "Tobii Eye Tracker 5" : "WebGazer";
@@ -3107,7 +3109,7 @@
                   </div>
                   <div class="webgazer-validate-stat-item">
                     <span class="webgazer-validate-stat-label">Effective Hit Threshold (includes ${thresholdPreview.allowanceDeg}° allowance)</span>
-                    <span class="webgazer-validate-stat-value ${hasEnoughData ? "pass" : "fail"}">${hasEnoughData ? `${thresholdPreview.effectiveDeg}° (${effectiveThresholdArcmin}')` : "N/A"}</span>
+                    <span class="webgazer-validate-stat-value ${effectiveThresholdClass}">${hasEnoughData ? `${thresholdPreview.effectiveDeg}° (${effectiveThresholdArcmin}')` : "N/A"}</span>
                   </div>
                   <div class="webgazer-validate-stat-item">
                     <span class="webgazer-validate-stat-label">Accuracy Status</span>
@@ -3997,6 +3999,7 @@
         const currentCenter = { x: center.x, y: center.y };
         let neutralHeadPose = null;
         let currentHeadPose = null;
+        let vorPositionUpdatedAt = null;
         const headTrackingStartedAt = performance.now();
         const readHeadPose = () => {
           const tracker = window.webgazer?.getTracker?.();
@@ -4525,7 +4528,16 @@
             }
             currentHeadPose = pose;
           }
-          setPosition(vorTargetPoint(currentHeadPose, neutralHeadPose, settings, calibration, screenPixels, geometry));
+          const point = vorTargetPoint(currentHeadPose, neutralHeadPose, settings, calibration, screenPixels, geometry);
+          if (usesHeadTracking) {
+            // A 50 ms time constant softens camera noise and steps at any display refresh rate.
+            const elapsed = Math.max(0, now - (vorPositionUpdatedAt ?? now));
+            const alpha = -Math.expm1(-elapsed / 50);
+            point.x = currentCenter.x + (point.x - currentCenter.x) * alpha;
+            point.y = currentCenter.y + (point.y - currentCenter.y) * alpha;
+            vorPositionUpdatedAt = now;
+          }
+          setPosition(point);
           const dueIndex = Math.floor((now - sessionStart) / settings.changeMs);
           if (dueIndex > vorIndex) updateVor(dueIndex, now);
         };

@@ -113,4 +113,6 @@ Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git ta
 
 `v1.6.0` 新增 VOR 1–2x 倍數、左右／上下方向及攝影機頭部角度控制。
 
+`v1.6.2` 將 validation 後的 Effective Hit Threshold 改為小於 6° 綠色、6° 至未滿 8° 黃色、8° 起紅色；VOR 移動目標加入 50ms 時間常數的平滑處理，以減少 2x 左右／上下移動時的抖動。
+
 本專案採用 **GNU Affero General Public License v3.0（AGPL-3.0）**，完整條文見 [LICENSE](LICENSE)。第三方函式庫、模型及 Tobii 元件保留各自的授權與著作權聲明；本專案授權不會取代其條款。隨附的 WebGazer 保留 GPLv3 聲明，jsPsych 保留 MIT 聲明。
