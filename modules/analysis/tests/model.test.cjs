@@ -184,3 +184,25 @@ test("CSV exports protect participant-controlled formula text without changing n
   assert.equal(row.bias, "-1.5");
   assert.equal(row.missing, "");
 });
+
+test("manual diplopia JSON is analyzed without becoming a training session or duplicating carried answers", async () => {
+  const m = await model;
+  const questionnaire = { source_session_id: "diplopia-123", source_module: "manual",
+    submitted_at: "2026-10-29T10:00:00+08:00",
+    responses: Object.keys(m.DIRECTIONS).filter(key => !["center", "unknown"].includes(key)).map(direction => ({
+      direction, no_diplopia: direction !== "rightMiddle", onset_angle_deg: direction === "rightMiddle" ? 12 : null
+    })) };
+  const raw = { record_type: "diplopia_questionnaire", subject_id: "P001", session_id: "diplopia-123", diplopia_questionnaire: questionnaire };
+  const report = m.readSessions(JSON.stringify(raw), "manual.json");
+  assert.equal(report[0].completed, false);
+  assert.equal(report[0].questionnaireOnly, true);
+  assert.equal(m.taskRows(report, { completed: false }).length, 0);
+  const carried = m.readSessions(JSON.stringify(session("later-training", [], { diplopia_questionnaire: questionnaire })));
+  const rows = m.diplopiaRows(m.mergeSessions(report, carried));
+  assert.equal(rows.length, 8);
+  assert.ok(rows.every(row => row.module === "manual"));
+  assert.equal(rows.find(row => row.direction === "rightMiddle").angle, 12);
+  assert.equal(rows.find(row => row.direction === "leftMiddle").angle, null);
+  assert.equal(m.taskRows(carried).length, 1);
+  assert.throws(() => m.readSessions(JSON.stringify({ ...raw, subject_id: "" })), /受試者/);
+});

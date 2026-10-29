@@ -92,7 +92,8 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       targetFitError, saveStoredModuleSettings, readStoredModuleSettings,
       recordCompletedPractice, readDiplopiaProgress, diplopiaAngleDeg, updateSubjectId, tobiiStatusText,
       installMonocularWebGazerModels, vorHeadPose, vorTargetPoint, pendingVorHeadTracking,
-      fallBackToUntrackedSession };
+      fallBackToUntrackedSession, targetSpanLayout, targetSpanLimits, diplopiaGeometry, diplopiaPoint,
+      showDiplopiaQuestionnaire, StageInstructionPlugin, MenuPlugin };
     jsPsych.run([`), context);
   return { window, document, jsPsych, timers, frames, savedCsvs, alerts, storage, api: window.testApi,
     setNow: value => { now = value; },
@@ -291,9 +292,11 @@ test("the first daily practice in any module waits for eight answers and exports
     assert.equal(questionnaire.responses[1].onset_angle_deg, null);
     assert.equal(questionnaire.responses[1].onset_x_norm, null);
     assert.equal(questionnaire.responses[7].onset_percent, 100);
-    assert.equal(questionnaire.responses[7].onset_x_norm, 1);
-    assert.equal(questionnaire.responses[7].onset_y_norm, 1);
-    const expectedAngle = Math.round(Math.atan(Math.hypot(26.5, 15) / 60) * 180 / Math.PI * 1000) / 1000;
+    const geometry = app.api.diplopiaGeometry(result);
+    assert.equal(questionnaire.responses[7].onset_x_norm, (960 + geometry.rx) / 1920);
+    assert.equal(questionnaire.responses[7].onset_y_norm, (540 + geometry.ry) / 1080);
+    assert.ok(questionnaire.responses[7].onset_x_norm < 1, "reserve the target radius at the edge");
+    const expectedAngle = Math.round(Math.atan(Math.hypot(geometry.rx * 53 / 1920, geometry.ry * 30 / 1080) / 60) * 180 / Math.PI * 1000) / 1000;
     assert.equal(questionnaire.responses[7].onset_angle_deg, expectedAngle);
     assert.match(finish.field("#diplopia-angle-rightDown").textContent, new RegExp(`${expectedAngle.toFixed(2)}°`));
     assert.equal(result.diplopia_questionnaire_status, "completed");
@@ -350,9 +353,9 @@ test("chart clicks replace a no-diplopia cross with the selected direction's ons
   none.handlers.change();
   chart.handlers.click({ clientX: 1440, clientY: 540 });
   assert.equal(none.checked, false);
-  assert.equal(finish.field("#diplopia-rightMiddle").value, "50");
+  assert.ok(Number(finish.field("#diplopia-rightMiddle").value) > 50, "the endpoint now leaves room for the radius");
   assert.equal(finish.field("#diplopia-rightMiddle").disabled, false);
-  assert.match(finish.field('[data-diplopia-marker="rightMiddle"]').innerHTML, /<circle cx="1440" cy="540"/);
+  assert.match(finish.field('[data-diplopia-marker="rightMiddle"]').innerHTML, /<ellipse cx=/);
   chart.handlers.click({ clientX: 0, clientY: 0 });
   assert.equal(finish.field("#diplopia-leftUp").value, "100");
   none.checked = true;
@@ -373,13 +376,14 @@ test("fullscreen diplopia drags lock a direction and update every intermediate p
   const pointer = (x, y, type) => ({ clientX: x, clientY: y, pointerId: 1, button: 0, type, preventDefault() {} });
   chart.handlers.pointerdown(pointer(960, 540, "pointerdown"));
   chart.handlers.pointermove(pointer(1200, 540, "pointermove"));
-  assert.equal(finish.field('#diplopia-rightMiddle').value, '25');
+  assert.ok(Number(finish.field('#diplopia-rightMiddle').value) > 25);
   chart.handlers.pointermove(pointer(1680, 800, "pointermove"));
-  assert.equal(finish.field('#diplopia-rightMiddle').value, '75');
+  const marked = finish.field('#diplopia-rightMiddle').value;
+  assert.ok(Number(marked) > 75);
   assert.equal(finish.field('#diplopia-rightDown').value, '');
   chart.handlers.pointerup(pointer(1680, 800, "pointerup"));
   chart.handlers.pointermove(pointer(1000, 540, "pointermove"));
-  assert.equal(finish.field('#diplopia-rightMiddle').value, '75');
+  assert.equal(finish.field('#diplopia-rightMiddle').value, marked);
 });
 
 test("the diplopia slider and no-diplopia toggle update the same persisted answer", () => {
@@ -426,15 +430,20 @@ test("diplopia angles use eccentricity from center, calibrated physical axes and
   const session = { calibration: app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 }),
     viewport: { width: 1920, height: 1080 }, screen_pixels: { width: 1920, height: 1080 } };
   const expected = (x, y) => Math.round(Math.atan(Math.hypot(x, y) / 60) * 180 / Math.PI * 1000) / 1000;
+  const bounds = app.api.diplopiaGeometry(session);
+  const horizontal = bounds.rx * 53 / 1920;
+  const vertical = bounds.ry * 30 / 1080;
   for (const [x, y] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) {
-    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 100, session), expected(x * 26.5, y * 15));
-    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 50, session), expected(x * 13.25, y * 7.5));
+    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 100, session), expected(x * horizontal, y * vertical));
+    assert.equal(app.api.diplopiaAngleDeg({ x, y }, 50, session), expected(x * horizontal / 2, y * vertical / 2));
     assert.equal(app.api.diplopiaAngleDeg({ x, y }, 0, session), 0);
   }
   const smallerViewport = { ...session, viewport: { width: 960, height: 540 } };
-  assert.equal(app.api.diplopiaAngleDeg({ x: 1, y: 1 }, 100, smallerViewport), expected(13.25, 7.5));
+  const smallerBounds = app.api.diplopiaGeometry(smallerViewport);
+  assert.equal(app.api.diplopiaAngleDeg({ x: 1, y: 1 }, 100, smallerViewport), expected(smallerBounds.rx * 53 / 1920, smallerBounds.ry * 30 / 1080));
   const farther = { ...session, calibration: { ...session.calibration, viewingDistanceCm: 120 } };
-  assert.equal(app.api.diplopiaAngleDeg({ x: 1, y: 1 }, 100, farther), expected(13.25, 7.5));
+  const fartherBounds = app.api.diplopiaGeometry(farther);
+  assert.equal(app.api.diplopiaAngleDeg({ x: 1, y: 1 }, 100, farther), expected(fartherBounds.rx * 53 / 1920 / 2, fartherBounds.ry * 30 / 1080 / 2));
 });
 
 test("questionnaire scheduling counts each participant across modules and local calendar days", () => {
@@ -452,6 +461,90 @@ test("questionnaire scheduling counts each participant across modules and local 
   const sameDay = app.api.recordCompletedPractice("P001", tomorrow);
   assert.equal(sameDay.completed_practice_count, 21);
   assert.equal(sameDay.questionnaire_due, false);
+});
+
+test("diplopia endpoints equal each module's maximum span and angles remain one-sided", () => {
+  const app = loadApp();
+  for (const screen of [{ width: 1920, height: 1080 }, { width: 1280, height: 800 }]) {
+    app.window.screen = screen;
+    for (const viewingDistanceCm of [40, 60, 120]) {
+      for (const ballArcmin of [60, 300, 600]) {
+        const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm });
+        const limits = app.api.targetSpanLimits({ ballArcmin }, calibration);
+        const session = { calibration, viewport: { ...screen }, screen_pixels: { ...screen }, stimulus: { arcmin: ballArcmin } };
+        const diagonal = app.api.diplopiaPoint({ x: 1, y: 1 }, 100, session);
+        for (const module of ["pursuit", "saccade", "fixation"]) {
+          const layout = app.api.targetSpanLayout(module, { ballArcmin,
+            horizontalSpanArcmin: limits.horizontalArcmin, verticalSpanArcmin: limits.verticalArcmin }, calibration, screen);
+          assert.ok(Math.abs(diagonal.x - screen.width / 2 - layout.width / 2) < 1e-9);
+          assert.ok(Math.abs(diagonal.y - screen.height / 2 - layout.height / 2) < 1e-9);
+        }
+        assert.ok(Math.abs(app.api.diplopiaAngleDeg({ x: 1, y: 0 }, 100, session) - limits.horizontalArcmin / 120) <= .0005 + 1e-9);
+        assert.ok(Math.abs(app.api.diplopiaAngleDeg({ x: 0, y: 1 }, 100, session) - limits.verticalArcmin / 120) <= .0005 + 1e-9);
+        const diameterCm = 2 * viewingDistanceCm * Math.tan(ballArcmin / 60 / 2 * Math.PI / 180);
+        assert.ok(diagonal.x + diameterCm * screen.width / 53 / 2 <= screen.width + 1e-9);
+        assert.ok(diagonal.y + diameterCm * screen.height / 30 / 2 <= screen.height + 1e-9);
+        const middle = app.api.diplopiaAngleDeg({ x: 1, y: 0 }, 50, session);
+        const expected = Math.atan(Math.tan(limits.horizontalArcmin / 120 * Math.PI / 180) / 2) * 180 / Math.PI;
+        assert.ok(Math.abs(middle - expected) <= .0005 + 1e-9, "percent scales physical offset, not degrees");
+      }
+    }
+  }
+});
+
+test("diplopia target styles share answers and metadata, and stop their number timer on submission", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  finish();
+  const style = finish.field("#diplopia-picker-stimulus-type");
+  const marker = finish.field('[data-diplopia-marker="leftUp"]');
+  const numberTimer = [...app.timers.values()].find(timer => timer.delay === 500);
+  for (const type of ["white_dot", "red_in_white", "numbers_dot"]) {
+    style.value = type;
+    style.handlers.change();
+    assert.equal(finish.field("#diplopia-stimulus-type").value, type);
+    assert.match(marker.innerHTML, /<ellipse/);
+    if (type === "red_in_white") assert.match(marker.innerHTML, /fill="#ef4444"/);
+    if (type === "numbers_dot") {
+      const before = marker.innerHTML;
+      numberTimer.callback();
+      assert.notEqual(marker.innerHTML, before);
+      assert.match(marker.innerHTML, /<text/);
+    }
+  }
+  finish.submitQuestionnaire();
+  const error = finish.field("#diplopia-error").textContent;
+  numberTimer.callback();
+  assert.equal(finish.field("#diplopia-error").textContent, error, "number updates preserve missing-answer feedback");
+  for (const direction of ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"]) {
+    finish.field(`#no-diplopia-${direction}`).checked = true;
+  }
+  finish.submitQuestionnaire();
+  assert.equal(finish.result().diplopia_questionnaire.stimulus.type, "numbers_dot");
+  assert.equal(finish.result().diplopia_questionnaire.stimulus.arcmin, 60);
+  assert.ok(![...app.timers.values()].some(timer => timer.delay === 500));
+});
+
+test("instruction cancellation clears pending work and exits recalibration loops", async () => {
+  const app = loadApp({ webgazerAvailable: true });
+  const state = app.api.AppState;
+  state.pending = { module: "vor" };
+  state.eyeTracking.needsRecalibration = true;
+  state.tobii.needsRevalidation = true;
+  const buttons = new Map();
+  const display = { innerHTML: "", querySelector: selector => ({ focus() {},
+    addEventListener: (_, callback) => buttons.set(selector, callback) }) };
+  let result;
+  app.jsPsych.finishTrial = value => { result = value; };
+  new app.api.StageInstructionPlugin(app.jsPsych).trial(display, { stage: "calibration" });
+  assert.match(display.innerHTML, /lang="zh-Hant"/);
+  assert.match(display.innerHTML, /lang="en"/);
+  assert.equal(result, undefined);
+  await buttons.get("[data-stage-cancel]")();
+  assert.equal(result.action, "instructions_cancelled");
+  assert.equal(state.pending, null);
+  assert.equal(state.eyeTracking.needsRecalibration, false);
+  assert.equal(state.tobii.needsRevalidation, false);
 });
 
 test("restarting preserves counts and simultaneous daily/tenth triggers produce one questionnaire", () => {
@@ -598,6 +691,7 @@ for (const source of ["tobii", "webgazer"]) {
       let validationResult;
       app.jsPsych.finishTrial = value => { validationResult = value; };
       new validationNode.timeline[0].type(app.jsPsych).trial(display, {});
+      buttons.get("[data-val-action='begin']")();
       let sampleIndex = 0;
       for (const [x, y] of [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
         app.runTimer(350);
@@ -613,7 +707,7 @@ for (const source of ["tobii", "webgazer"]) {
       assert.equal(state.eyeTracking.lastValidation.dynamicThresholdDeg, 0.5);
       const training = source === "tobii" ? tobiiTraining : webgazerTraining;
       assert.equal(training.conditional_function(), true);
-      assert.equal(training.timeline[0].eye_tracking().source, source);
+      assert.equal(training.timeline[1].timeline[0].eye_tracking().source, source);
 
       let positions = faceMeshPose();
       const tracker = { positionsTimestamp: 1000, getPositions: () => positions };
@@ -833,7 +927,7 @@ test("moving VOR camera setup requires a fresh face and offers cancellation", as
   app.jsPsych.finishTrial = value => { result = value; };
   new app.api.OptionalWebGazerCameraPlugin(app.jsPsych).trial(display, {});
   await new Promise(setImmediate);
-  assert.match(display.innerHTML, /Start VOR training/);
+  assert.match(display.innerHTML, /Continue to VOR/);
   assert.match(display.innerHTML, /Cancel training/);
   assert.equal(controls.get("#webgazer-camera-continue").disabled, true);
   tracker.positionsTimestamp = 1000;
@@ -1392,6 +1486,9 @@ test("zero-data validation blocks proceeding and does not invent an error thresh
   let result;
   app.jsPsych.finishTrial = value => { result = value; };
   new app.api.GazeValidationPlugin(app.jsPsych).trial(display, {});
+  assert.match(display.innerHTML, /驗證前說明 \/ Before validation/);
+  assert.ok(![...app.timers.values()].some(timer => timer.delay === 350), "collection waits for readiness");
+  buttons.get("[data-val-action='begin']")();
   for (let i = 0; i < 5; i++) { app.runTimer(350); app.runTimer(1050); }
   assert.match(display.innerHTML, /Insufficient valid gaze data/);
   assert.ok(!display.innerHTML.includes('data-val-action="proceed"'));
@@ -1685,6 +1782,7 @@ for (const source of ["tobii", "webgazer"]) {
         return { addEventListener: (_, callback) => buttons.set(selector, callback) };
       } };
       new app.api.GazeValidationPlugin(app.jsPsych).trial(display, {});
+      buttons.get("[data-val-action='begin']")();
       assert.equal(app.frames.size, 0, "Validation must consume the existing gaze stream without polling");
       for (const [xRatio, yRatio] of [[0.5, 0.5], [0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]]) {
         app.runTimer(350);

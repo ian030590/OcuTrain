@@ -71,7 +71,7 @@ function renderDiplopia() {
   const keys = Object.keys(DIRECTIONS).filter(key => !["center", "unknown"].includes(key) && (selected === "all" || selected === key));
   const series = keys.map(key => ({ label: DIRECTIONS[key], points: rows.filter(row => row.direction === key).map(row => ({
     x: new Date(row.submitted_at).getTime(), y: row.angle,
-    description: `${new Date(row.submitted_at).toLocaleString("zh-TW")} · ${MODULES[row.module] || row.module}`
+    description: `${new Date(row.submitted_at).toLocaleString("zh-TW")} · ${row.module === "manual" ? "主動填寫" : MODULES[row.module] || row.module}`
   })) })).filter(item => item.points.length);
   renderChart($("diplopia-chart"), series, { label: "各方向複視起點角度趨勢" });
   const questionnaires = new Map();
@@ -81,7 +81,7 @@ function renderDiplopia() {
     questionnaires.get(key).answers.set(row.direction, row);
   }
   table($("diplopia-table"), ["實際填答時間", "來源模組", ...keys.map(key => `${DIRECTIONS[key]}（°）`)],
-    [...questionnaires.values()].map(q => [esc(new Date(q.submitted_at).toLocaleString("zh-TW")), esc(MODULES[q.module] || q.module), ...keys.map(key => {
+    [...questionnaires.values()].map(q => [esc(new Date(q.submitted_at).toLocaleString("zh-TW")), esc(q.module === "manual" ? "主動填寫" : MODULES[q.module] || q.module), ...keys.map(key => {
       const answer = q.answers.get(key);
       return esc(!answer ? "未測量" : answer.no_diplopia ? "無複視" : fmt(answer.angle));
     })]), "此受試者在所選日期沒有實際填答的複視問卷；沿用問卷會放在原填答日期。");
@@ -103,7 +103,8 @@ function render() {
   $("error").hidden = true;
   const subjectSessions = sessions.filter(session => session.subject === $("subject").value);
   const completed = subjectSessions.filter(session => session.completed).length;
-  $("person-summary").textContent = `${$("subject").value} · ${subjectSessions.length} 次不重複測驗（${completed} 次正常完成） · ${subjectSessions[0]?.date || ""} 至 ${subjectSessions.at(-1)?.date || ""}`;
+  const reports = subjectSessions.filter(session => session.questionnaireOnly).length;
+  $("person-summary").textContent = `${$("subject").value} · ${subjectSessions.length - reports} 次不重複測驗（${completed} 次正常完成） · ${reports} 筆獨立複視問卷 · ${subjectSessions[0]?.date || ""} 至 ${subjectSessions.at(-1)?.date || ""}`;
   renderTask();
   renderDiplopia();
   const notes = [...new Set(subjectSessions.flatMap(session => session.notes))];
@@ -126,7 +127,8 @@ function updateSubjects() {
   const sources = [...new Set(sessions.map(session => session.source))].sort();
   options($("source"), [["all", "全部來源（分開顯示）"], ...sources.map(source => [source, sourceName(source)])], $("source").value);
   if (!initializedModule && sessions.length) {
-    $("module").value = sessions.some(session => session.module === "fixation") ? "fixation" : sessions[0].module;
+    const tasks = sessions.filter(session => !session.questionnaireOnly);
+    $("module").value = tasks.some(session => session.module === "fixation") ? "fixation" : tasks[0]?.module || "fixation";
     initializedModule = true;
   }
 }

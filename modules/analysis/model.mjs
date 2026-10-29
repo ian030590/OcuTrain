@@ -150,21 +150,23 @@ function normalizeQuestionnaire(value, session) {
   }
   const sourceModule = String(q.source_module || "unknown").toLowerCase();
   return { submitted_at: q.submitted_at, source_session_id: typeof q.source_session_id === "string" ? q.source_session_id : "",
-    source_module: own(MODULES, sourceModule) ? sourceModule : "unknown", responses };
+    source_module: own(MODULES, sourceModule) || sourceModule === "manual" ? sourceModule : "unknown", responses };
 }
 
 function normalizeSession(input, filename, rows = null) {
   const raw = object(input);
-  const module = String(raw.module || "").toLowerCase();
-  if (!own(MODULES, module) || typeof raw.session_id !== "string" || typeof raw.subject_id !== "string" || !raw.subject_id.trim()) throw new Error("缺少受試者、測驗識別碼或有效訓練模組");
+  const questionnaireOnly = raw.record_type === "diplopia_questionnaire";
+  const module = questionnaireOnly ? "manual" : String(raw.module || "").toLowerCase();
+  if ((!questionnaireOnly && !own(MODULES, module)) || typeof raw.session_id !== "string" || typeof raw.subject_id !== "string" || !raw.subject_id.trim()) throw new Error("缺少受試者、測驗識別碼或有效訓練模組");
   const eye = object(decoded(raw.eye_tracking));
-  const date = raw.date || localDate(raw.ended_at);
+  const endedAt = questionnaireOnly ? object(decoded(raw.diplopia_questionnaire)).submitted_at : raw.ended_at;
+  const date = raw.date || localDate(endedAt);
   if (!dateValid(date)) throw new Error("測驗日期無效");
   const sourceValue = eye.provider_mode === "simulator" ? "tobii_simulator" : String(eye.source || "unknown").toLowerCase();
   const source = own(SOURCES, sourceValue) ? sourceValue : "unknown";
-  const session = { id: raw.session_id, subject: String(raw.subject_id), module, source, date,
-    time: raw.time || (Number.isFinite(new Date(raw.ended_at).getTime()) ? new Date(raw.ended_at).toTimeString().slice(0, 8) : "00:00:00"),
-    completed: ["duration_complete", "evaluation_complete"].includes(raw.end_reason), endReason: raw.end_reason || "unknown",
+  const session = { id: raw.session_id, subject: String(raw.subject_id), module, source, date, questionnaireOnly,
+    time: raw.time || (Number.isFinite(new Date(endedAt).getTime()) ? new Date(endedAt).toTimeString().slice(0, 8) : "00:00:00"),
+    completed: !questionnaireOnly && ["duration_complete", "evaluation_complete"].includes(raw.end_reason), endReason: raw.end_reason || "unknown",
     settings: object(decoded(raw.settings)), settingsComplete: raw.settings_complete !== false,
     threshold: numeric(raw.threshold_deg), calibration: object(decoded(raw.calibration)),
     screen: object(decoded(raw.screen_pixels)), viewport: object(decoded(raw.viewport)),
@@ -174,7 +176,7 @@ function normalizeSession(input, filename, rows = null) {
   session.hasRaw = sampleRows.length > 0;
   session.rawCount = sampleRows.length;
   if (sampleRows.length) summarize(sampleRows, session);
-  if (!session.hasRaw) session.notes.push("只有測驗摘要；方向誤差需匯入同次逐筆 CSV");
+  if (!session.hasRaw && !questionnaireOnly) session.notes.push("只有測驗摘要；方向誤差需匯入同次逐筆 CSV");
   if (!(session.stats.score > 0)) {
     const valid = numeric(raw.valid_sec), hit = numeric(raw.in_threshold_sec), rate = numeric(raw.accuracy_rate);
     if (valid > 0 && (hit !== null || rate !== null)) {
@@ -228,7 +230,7 @@ export function readSessions(text, filename = "import") {
   if (/^[\s]*[\[{]/.test(text)) {
     const input = JSON.parse(text);
     const values = Array.isArray(input) ? input : Array.isArray(input?.trials) ? input.trials : [input];
-    sessions = values.filter(value => value?.session_id && value?.module).map(value => normalizeSession(value, filename));
+    sessions = values.filter(value => value?.session_id && (value?.module || value?.record_type === "diplopia_questionnaire")).map(value => normalizeSession(value, filename));
   } else sessions = rawCSV(text, filename);
   if (!sessions.length) throw new Error("找不到 OcuTrain 測驗紀錄");
   return sessions;
@@ -268,6 +270,7 @@ export function conditionLabel(session) {
 export function taskRows(sessions, filter = {}) {
   const groups = new Map();
   for (const session of sessions) {
+    if (session.questionnaireOnly) continue;
     if (filter.subject && session.subject !== filter.subject || filter.module && filter.module !== "all" && session.module !== filter.module ||
       filter.source && filter.source !== "all" && session.source !== filter.source || filter.from && session.date < filter.from ||
       filter.to && session.date > filter.to || filter.completed !== false && !session.completed) continue;

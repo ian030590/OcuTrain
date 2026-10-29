@@ -2090,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "ocutrain"
-version = "1.8.0"
+version = "1.9.0"
 dependencies = [
  "libloading 0.8.9",
  "serde",

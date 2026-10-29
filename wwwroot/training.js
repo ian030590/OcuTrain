@@ -157,6 +157,10 @@
         .replace(/'/g, "&#039;");
     }
 
+    function bilingual(chinese, english) {
+      return `<span lang="zh-Hant">${chinese}</span><span class="bilingual-english" lang="en">${english}</span>`;
+    }
+
     function getInitialSubjectId() {
       try {
         const params = new URLSearchParams(window.location.search);
@@ -340,6 +344,13 @@
         short: "Movement and edge hold",
         description: "Follow the target to the configured endpoint and keep your gaze fixed while it remains there. Accuracy includes only the hold."
       }
+    };
+
+    const MODULE_INSTRUCTIONS_ZH = {
+      vor: "注視視標，同時依設定左右或上下轉頭。1x 時視標固定；大於 1x 時視標會依頭部旋轉反向移動。",
+      pursuit: "保持頭部穩定，用眼睛平順追隨視標從中心移至端點，再回到中心。",
+      saccade: "保持頭部穩定，視標跳到新位置時，盡快將視線移到視標並注視至下一次跳躍。",
+      fixation: "保持頭部穩定，追隨視標移至端點，並在停留期間持續注視。只有端點停留階段計分。"
     };
 
     const ALL_DIRECTIONS = [
@@ -1498,7 +1509,7 @@
               ${appTopbar()}
               <p class="eyebrow">Initial setup</p>
               <h1>Distance Setting</h1>
-              <p class="lede">Seat the participant directly in front of the screen with their eyes aligned to its center. These measurements convert visual angle settings into screen pixels.</p>
+              <p class="lede">${bilingual("請坐在測試螢幕正前方，眼睛對齊螢幕中心。輸入實體螢幕寬、高及眼睛到螢幕的距離，供所有模組與複視自述換算角度。", "Seat the participant directly in front of the screen with their eyes aligned to its center. Enter the physical screen width, height and eye-to-screen distance for angle conversion in all modules and the diplopia report.")}</p>
               <div class="setup-layout">
                 <section class="panel form-panel">
                   <div class="panel-heading">
@@ -1522,15 +1533,15 @@
                       </select>
                     </div>
                     <p id="initial-tobii-status" class="option-note" role="status" hidden></p>
-                    <p class="option-note">WebGazer uses camera positioning and nine-point calibration. Tobii uses the participant's hardware calibration in Tobii Experience. Both use 5-point gaze validation before tracked training.</p>
+                    <p class="option-note">${bilingual("WebGazer 先定位攝影機，再進行九點校正。Tobii 須先在 Tobii Experience 完成此受試者的硬體校正；兩者都會在眼動訓練前進行五點驗證。", "WebGazer uses camera positioning and nine-point calibration. Tobii uses the participant's hardware calibration in Tobii Experience. Both use 5-point gaze validation before tracked training.")}</p>
                     <label class="option-row" for="initial-tobii-calibrated">
                       <input id="initial-tobii-calibrated" name="tobiiCalibrated" type="checkbox" disabled>
                       <span>I confirm that this participant was calibrated in Tobii Experience</span>
                     </label>
                     <p id="calibration-error" class="form-error" role="alert"></p>
                     <div class="form-actions">
-                      <p class="safety-note">Set browser zoom to 100%. Press ESC immediately if the participant feels dizzy or uncomfortable.</p>
-                      <button class="primary-button" type="submit">Save and continue</button>
+                      <p class="safety-note">${bilingual("請將縮放設為 100%。如感到暈眩或不適，請立即按 Esc 停止。", "Set browser zoom to 100%. Press Esc immediately if the participant feels dizzy or uncomfortable.")}</p>
+                      <button class="primary-button" type="submit">儲存並繼續 / Save and continue</button>
                     </div>
                   </form>
                 </section>
@@ -1675,9 +1686,9 @@
           <div class="module-top">
             <span class="module-code">${module.code}</span>
             <h2>${module.name}</h2>
-            <p>${module.description}</p>
+            <p>${bilingual(MODULE_INSTRUCTIONS_ZH[key], module.description)}</p>
           </div>
-          <button class="module-button" type="button" data-open-module="${key}" aria-label="Configure ${module.code} ${module.name}">Configure</button>
+          <button class="module-button" type="button" data-open-module="${key}" aria-label="設定 / Configure ${module.code} ${module.name}">設定 / Configure</button>
         </article>`).join("");
     }
 
@@ -1725,6 +1736,7 @@
               <span>${reasonLabels[session.end_reason] || session.end_reason} · In-target: <strong>${inSec}</strong> / Valid: <strong>${validSec}</strong> · Threshold: ${session.threshold_deg || 1.5}°</span>
               ${session.module === "saccade" ? `<span>Mean TFF: <strong>${session.tff_mean_ms != null ? session.tff_mean_ms + " ms" : "N/A"}</strong> · Detected: ${session.tff_detected_targets || 0} / ${session.tff_total_targets || 0} targets</span>` : ""}
               ${session.diplopia_schedule ? `<span lang="zh-Hant">累計第 ${session.diplopia_schedule.completed_practice_count} 次練習</span>` : ""}
+              <p class="field-hint">${bilingual("結果顯示本次完成狀態與有效眼動資料中的命中時間；沒有有效追蹤時，準確度顯示 N/A。可匯出報告，並於下方查看各方向複視角度。", "Results show session completion and time on target within valid gaze data. Accuracy is N/A without valid tracking. Export the report and review diplopia angles below.")}</p>
               <span data-save-status style="color:var(--muted, #888); font-size:12px;">${window.OcuTrainDesktop ? desktopSaveStatus() : "CSV report downloaded"}</span>
             </div>
           </div>
@@ -2054,12 +2066,14 @@
           </div>
           <div class="dialog-body">
             <form id="module-form" data-module="${moduleKey}">
+              <p class="stage-instructions">${bilingual(MODULE_INSTRUCTIONS_ZH[moduleKey], module.description)}</p>
+              <p class="field-hint">${bilingual("請先確認視標樣式、大小、方向及時間。按下開始後會顯示操作說明，再進行訓練；按 Esc 可停止。", "Check the target style, size, directions and timing. After Start, read the instructions before beginning training. Press Esc to stop.")}</p>
               <div class="field-grid">${moduleFormFields(moduleKey, settings)}</div>
               <div id="target-preview" class="target-preview" aria-live="polite"></div>
               <p id="module-error" class="form-error" role="alert"></p>
               <div class="dialog-actions">
                 <button class="ghost-button" type="button" data-close-dialog>Cancel</button>
-                <button class="primary-button" type="submit">Start</button>
+                <button class="primary-button" type="submit">開始 / Start</button>
               </div>
             </form>
           </div>
@@ -2327,16 +2341,18 @@
       trial(displayElement) {
         AppState.pending = null;
         let settled = false;
+        const latestQuestionnaire = readDiplopiaProgress(subjectId).latest_questionnaire;
         displayElement.innerHTML = `
           <section class="app-page">
             <div class="app-shell">
               ${appTopbar()}
               <div class="menu-hero">
-                <div><p class="eyebrow">Training modules</p><h1>Select a training module</h1><p class="lede">Configure the target size, timing, speed, and test mode before each session.</p></div>
+                <div><p class="eyebrow">Training modules</p><h1>選擇訓練模組 / Select a training module</h1><p class="lede">${bilingual("每次訓練前請確認受試者、螢幕距離、視標樣式、方向與時間。可從右上方隨時開啟複視自述。", "Before each session, check the participant, viewing distance, target style, directions and timing. Open the diplopia report at the upper right whenever needed.")}</p></div>
                 <div class="menu-actions">
-                  <button class="secondary-button" type="button" data-open-calibration>Distance Setting</button>
-                  <button class="secondary-button" type="button" data-open-help>Instructions</button>
-                  <button class="secondary-button" type="button" data-run-webgazer-calib>Calibration</button>
+                  <button class="secondary-button" type="button" data-open-diplopia>複視自述 / Diplopia</button>
+                  <button class="secondary-button" type="button" data-open-calibration>距離設定 / Distance Setting</button>
+                  <button class="secondary-button" type="button" data-open-help>操作說明 / Instructions</button>
+                  <button class="secondary-button" type="button" data-run-webgazer-calib>校正 / Calibration</button>
                   <button class="secondary-button" type="button" data-open-eye-tracking>${eyeTrackingStatusText()}</button>
                 </div>
               </div>
@@ -2344,6 +2360,7 @@
               ${calibrationStrip(AppState.calibration)}
               <p id="tobii-live-status" class="option-note" role="status" ${AppState.eyeTracking.source === EYE_SOURCE_TOBII ? "" : "hidden"}>${escapeHtml(tobiiStatusText())}</p>
               ${sessionBanner(AppState.lastSession)}
+              ${latestQuestionnaire?.source_module === "manual" && AppState.lastSession?.diplopia_questionnaire?.source_session_id !== latestQuestionnaire.source_session_id ? diplopiaResultsMarkup({ diplopia_questionnaire: latestQuestionnaire }) : ""}
               <div class="module-grid">${moduleCards()}</div>
             </div>
           </section>
@@ -2351,19 +2368,20 @@
             <div class="dialog-header"><div><p class="eyebrow">Quick guide</p><h2 id="help-title">Instructions and timing</h2></div><button class="icon-button" type="button" data-close-help aria-label="Close">×</button></div>
             <div class="dialog-body help-content">
               <ol>
-                <li>Set browser zoom to 100%. Seat the participant directly in front of the screen at the configured viewing distance.</li>
-                <li>Select a module, enter the settings, and choose Start. The browser will enter fullscreen when permitted.</li>
-                <li>Eye tracking is optional. WebGazer uses camera positioning and nine-point calibration. Tobii uses the participant's hardware calibration in Tobii Experience.</li>
-                <li>The pointer is hidden during training. Press ESC at any time to stop and return to the menu.</li>
-                <li>Evaluation follows a fixed sequence. Predictable and Random modes stop at the configured total duration.</li>
+                <li>${bilingual("將縮放設為 100%，坐在螢幕正前方並維持設定的觀看距離。", "Set browser zoom to 100%. Sit directly in front of the screen at the configured viewing distance.")}</li>
+                <li>${bilingual("選擇模組、設定參數並按開始，允許全螢幕。請先閱讀各階段說明，再按按鈕繼續。", "Select a module, configure it and choose Start. Allow fullscreen. Read each stage's instructions before continuing.")}</li>
+                <li>${bilingual("WebGazer 需攝影機定位與九點校正；Tobii 需先在 Tobii Experience 校正。兩者都會進行五點驗證。", "WebGazer uses camera positioning and nine-point calibration. Tobii requires calibration in Tobii Experience. Both use five-point validation.")}</li>
+                <li>${bilingual("訓練中游標會隱藏。隨時按 Esc 可停止並返回選單。", "The pointer is hidden during training. Press Esc at any time to stop and return to the menu.")}</li>
+                <li>${bilingual("Evaluation 使用固定順序；Predictable 與 Random 在設定時間結束。可由右上方主動填寫複視自述。", "Evaluation follows a fixed sequence. Predictable and Random stop at the configured duration. Open a manual diplopia report from the upper right.")}</li>
               </ol>
-              <p class="help-callout">Visible timing is limited by the display refresh rate. The application uses performance.now() and requestAnimationFrame and records actual stimulus timing in the exported jsPsych data.</p>
+              <p class="help-callout">${bilingual("實際刺激呈現受螢幕更新率限制，匯出資料會保留實際呈現時間。", "Visible timing is limited by the display refresh rate. Exported data records actual stimulus timing.")}</p>
             </div>
           </dialog>
           <dialog id="calibration-dialog" aria-labelledby="recalibration-title">
             <div class="dialog-header"><div><p class="eyebrow">Display Setup</p><h2 id="recalibration-title">Distance Setting</h2></div><button class="icon-button" type="button" data-close-calibration aria-label="Close">×</button></div>
             <div class="dialog-body">
               <form id="recalibration-form">
+                <p>${bilingual("請量測目前使用螢幕的實體寬、高及眼睛到螢幕的距離。更換螢幕或座位後請重新設定。", "Measure the physical width and height of the current display and the eye-to-screen distance. Update these settings after changing displays or seats.")}</p>
                 ${calibrationFields(AppState.calibration)}
                 <div id="recalibration-output" style="margin-top:18px"></div>
                 <p id="recalibration-error" class="form-error" role="alert"></p>
@@ -2375,6 +2393,7 @@
             <div class="dialog-header"><div><p class="eyebrow">Data source</p><h2 id="eye-tracking-title">Eye tracking</h2></div><button class="icon-button" type="button" data-close-eye-tracking aria-label="Close">×</button></div>
             <div class="dialog-body">
               <form id="eye-tracking-form">
+                <p>${bilingual("選擇眼動來源。WebGazer 需攝影機與九點校正；Tobii 需在 Tobii Experience 完成硬體校正。開始訓練前請依畫面完成五點驗證；Off 僅顯示刺激，不提供眼動分數。", "Choose an eye-tracking source. WebGazer requires a camera and nine-point calibration; Tobii requires hardware calibration in Tobii Experience. Follow the five-point validation prompts before training. Off presents stimuli without gaze scores.")}</p>
                 <div class="field">
                   <label for="eye-tracking-source">Eye-tracking source</label>
                   <select id="eye-tracking-source" name="eyeTrackingSource">
@@ -2409,6 +2428,52 @@
         const calibrationForm = displayElement.querySelector("#recalibration-form");
         const eyeTrackingForm = displayElement.querySelector("#eye-tracking-form");
         bindCalibrationPreview(calibrationForm, displayElement.querySelector("#recalibration-output"));
+
+        displayElement.querySelector("[data-open-diplopia]").addEventListener("click", async () => {
+          if (settled) return;
+          settled = true;
+          const participantId = subjectId;
+          if (!await requestFullscreenSafely()) {
+            settled = false;
+            alert("請允許全螢幕後再填寫複視自述。 / Allow fullscreen before completing the diplopia report.");
+            return;
+          }
+          const latest = readDiplopiaProgress(participantId).latest_questionnaire;
+          let stimulus = latest?.stimulus || { type: "white_dot", arcmin: 60 };
+          if (targetFitError("pursuit", { ballArcmin: stimulus.arcmin }, AppState.calibration)) {
+            stimulus = { type: stimulus.type, arcmin: 60 };
+          }
+          if (targetFitError("pursuit", { ballArcmin: stimulus.arcmin }, AppState.calibration)) {
+            await exitFullscreenSafely();
+            settled = false;
+            alert("視標超出畫面，請確認螢幕尺寸與觀看距離。 / Target does not fit. Check display dimensions and viewing distance.");
+            return;
+          }
+          const sessionId = `diplopia-${Date.now()}`;
+          const session = {
+            subject_id: participantId, module: "manual", calibration: { ...AppState.calibration },
+            viewport: { width: window.innerWidth, height: window.innerHeight }, screen_pixels: currentScreenPixels(),
+            stimulus
+          };
+          showDiplopiaQuestionnaire(displayElement, session, async questionnaire => {
+            const saved = { ...questionnaire, source_session_id: sessionId, source_module: "manual" };
+            saveDiplopiaProgress(participantId, { ...readDiplopiaProgress(participantId), latest_questionnaire: saved });
+            await downloadJson({ record_type: "diplopia_questionnaire", subject_id: participantId,
+              session_id: sessionId, diplopia_questionnaire: saved }, `${participantId}_${sessionId}.json`);
+            await exitFullscreenSafely();
+            this.jsPsych.finishTrial({ action: "diplopia_manual_completed", subject_id: participantId, diplopia_questionnaire: saved });
+          }, async () => {
+            await exitFullscreenSafely();
+            this.jsPsych.finishTrial({ action: "diplopia_manual_cancelled" });
+          });
+        });
+
+        displayElement.querySelectorAll("[data-export-diplopia]").forEach(button => button.addEventListener("click", () => {
+          const questionnaire = readDiplopiaProgress(subjectId).latest_questionnaire;
+          if (!questionnaire) return;
+          downloadJson({ record_type: "diplopia_questionnaire", subject_id: subjectId,
+            session_id: questionnaire.source_session_id, diplopia_questionnaire: questionnaire }, `${subjectId}_${questionnaire.source_session_id}.json`);
+        }));
 
         displayElement.querySelector("[data-open-help]").addEventListener("click", () => openDialog(helpDialog));
         displayElement.querySelectorAll("[data-close-help]").forEach((button) => button.addEventListener("click", () => closeDialog(helpDialog)));
@@ -2834,6 +2899,53 @@
       return (r * 299 + g * 587 + b * 114) / 1000 > 154 ? "#061018" : "#ffffff";
     }
 
+    class StageInstructionPlugin {
+      constructor(jsPsych) { this.jsPsych = jsPsych; }
+
+      trial(displayElement, trial) {
+        const calibrationStage = trial.stage === "calibration";
+        const moduleKey = AppState.pending?.module || "vor";
+        const instructions = calibrationStage
+          ? bilingual("九點校正：保持頭部與觀看距離穩定，先看著每個出現的圓點，再點擊一次。每個位置會出現兩次；校正結束後會進行五點驗證。", "Nine-point calibration: keep your head and viewing distance steady. Look directly at each dot, then click once. Each location appears twice. Five-point validation follows calibration.")
+          : bilingual(MODULE_INSTRUCTIONS_ZH[moduleKey], MODULES[moduleKey].description);
+        displayElement.innerHTML = `
+          <section class="app-page"><div class="app-shell stage-instruction-shell">
+            <h1>${calibrationStage ? "校正前說明 / Before calibration" : `${MODULES[moduleKey].code} 訓練前說明 / Before training`}</h1>
+            <p class="lede">${instructions}</p>
+            <p>${bilingual(calibrationStage ? "請先讀完說明，準備好後再開始校正。" : "請在中央十字出現時注視中心，並依本模組說明注視視標；數字球會變換數字與顏色。準備好後再開始，閱讀說明的時間不計入訓練。", calibrationStage ? "Read these instructions and begin calibration when ready." : "Look at the center when the central cross appears, then follow the module instructions. Number targets change digits and colors. Begin when ready; reading time is excluded from training.")}</p>
+            <p class="safety-note">${bilingual("訓練中如感到暈眩或不適，請立即按 Esc 停止。", "Press Esc immediately if you feel dizzy or uncomfortable.")}</p>
+            <div class="form-actions">
+              <button class="secondary-button" type="button" data-stage-cancel>返回選單 / Return to menu</button>
+              <button class="primary-button" type="button" data-stage-ready>${calibrationStage ? "開始校正 / Begin calibration" : "開始訓練 / Begin training"}</button>
+            </div>
+          </div></section>`;
+        let finished = false;
+        const finish = async cancelled => {
+          if (finished) return;
+          finished = true;
+          document.removeEventListener("keydown", onKeyDown);
+          if (cancelled) {
+            AppState.pending = null;
+            AppState.eyeTracking.needsRecalibration = false;
+            AppState.tobii.needsRevalidation = false;
+            await stopEyeTrackingRuntime();
+            await exitFullscreenSafely();
+          }
+          this.jsPsych.finishTrial({ action: cancelled ? "instructions_cancelled" : "instructions_read", stage: trial.stage });
+        };
+        const onKeyDown = event => { if (event.key === "Escape") void finish(true); };
+        document.addEventListener("keydown", onKeyDown);
+        displayElement.querySelector("[data-stage-ready]").addEventListener("click", () => finish(false));
+        displayElement.querySelector("[data-stage-cancel]").addEventListener("click", () => finish(true));
+        displayElement.querySelector("[data-stage-ready]").focus();
+      }
+    }
+
+    StageInstructionPlugin.info = {
+      name: "stage-instructions", version: "1.0.0",
+      parameters: { stage: { type: ParameterType.STRING } }, data: {}
+    };
+
     class OptionalWebGazerCameraPlugin {
       constructor(jsPsych) { this.jsPsych = jsPsych; }
 
@@ -2875,11 +2987,11 @@
             <section class="app-page">
               <div class="app-shell" style="max-width:760px">
                 <p class="eyebrow">WebGazer setup</p>
-                <h1>Camera positioning</h1>
-                <p class="lede">${headTracking ? "Look straight ahead and keep your head still. This position will be the center for VOR head tracking." : "Keep your head still and position your face until the camera guide indicates that tracking is ready. The next screen contains the calibration points."}</p>
+                <h1>攝影機定位 / Camera positioning</h1>
+                <p class="lede">${headTracking ? bilingual("請看向正前方並保持頭部穩定，此姿勢會作為 VOR 頭動追蹤的中心。", "Look straight ahead and keep your head still. This position will be the center for VOR head tracking.") : bilingual("保持頭部穩定，調整臉部位置直到攝影機顯示可追蹤，再繼續九點校正。", "Keep your head still and position your face until the camera guide indicates that tracking is ready. Continue to nine-point calibration.")}</p>
                 <div class="webgazer-camera-actions">
-                  <button id="webgazer-camera-continue" class="primary-button" type="button" disabled>${headOnly ? "Start VOR training" : "Continue to calibration"}</button>
-                  <button id="webgazer-camera-skip" class="secondary-button" type="button">${headTracking ? "Cancel training" : "Continue without eye tracking"}</button>
+                  <button id="webgazer-camera-continue" class="primary-button" type="button" disabled>${headOnly ? "繼續 VOR / Continue to VOR" : "繼續校正 / Continue to calibration"}</button>
+                  <button id="webgazer-camera-skip" class="secondary-button" type="button">${headTracking ? "取消訓練 / Cancel training" : "不使用眼動追蹤 / Continue without eye tracking"}</button>
                 </div>
               </div>
             </section>`;
@@ -2910,10 +3022,10 @@
             <section class="app-page">
               <div class="app-shell" style="max-width:760px">
                 <p class="eyebrow">WebGazer setup</p>
-                <h1>Eye tracking unavailable</h1>
-                <p class="lede">${headTracking ? "VOR above 1x needs the camera for head tracking. Check camera access and try again, or select 1x for a stationary target." : "The camera could not be initialized. You can continue this training session without eye tracking."}</p>
+                <h1>無法使用追蹤 / Eye tracking unavailable</h1>
+                <p class="lede">${headTracking ? bilingual("大於 1x 的 VOR 需要攝影機追蹤頭部。請確認相機權限後重試，或改選 1x 固定視標。", "VOR above 1x needs the camera for head tracking. Check camera access and try again, or select 1x for a stationary target.") : bilingual("攝影機無法啟動。可返回設定確認相機權限，或繼續不使用眼動追蹤的訓練。", "The camera could not be initialized. Check camera permissions in settings or continue without eye tracking.")}</p>
                 <div class="webgazer-camera-actions">
-                  <button id="webgazer-camera-fallback" class="primary-button" type="button">${headTracking ? "Return to menu" : "Continue without eye tracking"}</button>
+                  <button id="webgazer-camera-fallback" class="primary-button" type="button">${headTracking ? "返回選單 / Return to menu" : "不使用眼動追蹤 / Continue without eye tracking"}</button>
                 </div>
               </div>
             </section>`;
@@ -2925,8 +3037,8 @@
           <section class="app-page">
             <div class="app-shell" style="max-width:760px" role="status" aria-live="polite">
               <p class="eyebrow">WebGazer setup</p>
-              <h1>Starting camera</h1>
-              <p class="lede">Preparing the camera and local eye tracking models. Please wait. First use may take longer.</p>
+              <h1>正在啟動攝影機 / Starting camera</h1>
+              <p class="lede">${bilingual("正在準備攝影機與本機眼動模型，請稍候。首次啟動可能需要較久。", "Preparing the camera and local eye tracking models. Please wait. First use may take longer.")}</p>
             </div>
           </section>`;
         signalLoad();
@@ -3052,7 +3164,7 @@
           displayElement.innerHTML = `
             <div id="webgazer-validate-container">
               <div class="webgazer-validate-instruction">
-                Gaze Accuracy Validation: Look directly at the target (${idx + 1} / 5)
+                ${bilingual(`五點驗證：保持頭部穩定，看著視標，不需點擊（${idx + 1} / 5）。`, `Gaze Accuracy Validation: keep your head still and look directly at the target. No clicks needed (${idx + 1} / 5).`)}
               </div>
               <div class="webgazer-validate-target" style="left: ${tx}px; top: ${ty}px;">
                 <div class="webgazer-validate-target-inner"></div>
@@ -3119,33 +3231,33 @@
           let noticeHtml = "";
 
           if (!hasEnoughData) {
-            noticeHtml = `<p style="color:#f87171; font-size:14px; margin-bottom:18px;">Insufficient valid gaze data (${validPoints.length}/5 targets). Check that both eyes are detected in ${isTobii ? "Tobii Experience" : "the camera"}, then re-validate. Accuracy cannot be calculated.</p>`;
+            noticeHtml = `<p style="color:#f87171; font-size:14px; margin-bottom:18px;">${bilingual(`有效眼動資料不足（${validPoints.length}/5 個位置）。請確認雙眼可被偵測，再重新驗證；目前無法計算準確度。`, `Insufficient valid gaze data (${validPoints.length}/5 targets). Check that both eyes are detected in ${isTobii ? "Tobii Experience" : "the camera"}, then re-validate. Accuracy cannot be calculated.`)}</p>`;
             actionButtonsHtml = `
-              <button class="primary-button" type="button" data-val-action="recalib">Re-validate</button>
-              <button class="secondary-button" type="button" data-val-action="done">Return to Menu</button>`;
+              <button class="primary-button" type="button" data-val-action="recalib">重新驗證 / Re-validate</button>
+              <button class="secondary-button" type="button" data-val-action="done">返回選單 / Return to Menu</button>`;
           } else if (isCalibrateOnly) {
             if (passed) {
-              noticeHtml = `<p style="color:var(--lime, #63e6ff); font-size:14px; margin-bottom:18px;">Validation passed. Gaze tracking precision verified and ready.</p>`;
+              noticeHtml = `<p style="color:var(--lime, #63e6ff); font-size:14px; margin-bottom:18px;">${bilingual("驗證通過，眼動資料已可用於訓練。", "Validation passed. Gaze tracking precision verified and ready.")}</p>`;
               actionButtonsHtml = `
-                <button class="primary-button" type="button" data-val-action="done">Complete & Return to Menu</button>
-                <button class="secondary-button" type="button" data-val-action="recalib">${isTobii ? "Re-validate" : "Recalibrate"}</button>`;
+                <button class="primary-button" type="button" data-val-action="done">完成並返回選單 / Complete & Return to Menu</button>
+                <button class="secondary-button" type="button" data-val-action="recalib">${isTobii ? "重新驗證 / Re-validate" : "重新校正 / Recalibrate"}</button>`;
             } else {
-              noticeHtml = `<p style="color:#f87171; font-size:14px; margin-bottom:18px;">Average angular error (${meanErrorDeg}°) exceeds target threshold (${PASS_THRESHOLD_DEG}°). Recalibration is recommended.</p>`;
+              noticeHtml = `<p style="color:#f87171; font-size:14px; margin-bottom:18px;">${bilingual(`平均角度誤差 ${meanErrorDeg}° 超過建議值 ${PASS_THRESHOLD_DEG}°，建議重新校正。`, `Average angular error (${meanErrorDeg}°) exceeds target threshold (${PASS_THRESHOLD_DEG}°). Recalibration is recommended.`)}</p>`;
               actionButtonsHtml = `
-                <button class="primary-button" type="button" data-val-action="recalib">${isTobii ? "Re-validate" : "Recalibrate"}</button>
-                <button class="secondary-button" type="button" data-val-action="done">Skip & Return to Menu</button>`;
+                <button class="primary-button" type="button" data-val-action="recalib">${isTobii ? "重新驗證 / Re-validate" : "重新校正 / Recalibrate"}</button>
+                <button class="secondary-button" type="button" data-val-action="done">略過並返回選單 / Skip & Return to Menu</button>`;
             }
           } else {
             if (passed) {
-              noticeHtml = `<p style="color:var(--lime, #63e6ff); font-size:14px; margin-bottom:18px;">Validation passed. Effective hit threshold: ${thresholdPreview.effectiveDeg}°, including a ${thresholdPreview.allowanceDeg}° ${sourceName} measurement-error allowance where needed. Starting training...</p>`;
+              noticeHtml = `<p style="color:var(--lime, #63e6ff); font-size:14px; margin-bottom:18px;">${bilingual(`驗證通過。有效命中門檻為 ${thresholdPreview.effectiveDeg}°，已依需要納入 ${sourceName} 的 ${thresholdPreview.allowanceDeg}° 誤差容許值。繼續後會顯示訓練說明。`, `Validation passed. Effective hit threshold: ${thresholdPreview.effectiveDeg}°, including a ${thresholdPreview.allowanceDeg}° ${sourceName} measurement-error allowance where needed. Continue to the training instructions.`)}</p>`;
               actionButtonsHtml = `
-                <button class="primary-button" type="button" data-val-action="proceed">Start Training (<span id="val-cd-num">3</span>s)</button>
-                <button class="secondary-button" type="button" data-val-action="recalib">${isTobii ? "Re-validate" : "Recalibrate"}</button>`;
+                <button class="primary-button" type="button" data-val-action="proceed">繼續訓練說明 / Training instructions (<span id="val-cd-num">3</span>s)</button>
+                <button class="secondary-button" type="button" data-val-action="recalib">${isTobii ? "重新驗證 / Re-validate" : "重新校正 / Recalibrate"}</button>`;
             } else {
-              noticeHtml = `<p style="color:#f87171; font-size:14px; margin-bottom:18px;">Validation error higher than recommended (${meanErrorDeg}° > ${PASS_THRESHOLD_DEG}°). You may re-validate or proceed with the effective threshold (${thresholdPreview.effectiveDeg}°).</p>`;
+              noticeHtml = `<p style="color:#f87171; font-size:14px; margin-bottom:18px;">${bilingual(`驗證誤差高於建議值（${meanErrorDeg}° > ${PASS_THRESHOLD_DEG}°）。可重新驗證，或使用有效門檻 ${thresholdPreview.effectiveDeg}° 繼續。`, `Validation error higher than recommended (${meanErrorDeg}° > ${PASS_THRESHOLD_DEG}°). You may re-validate or proceed with the effective threshold (${thresholdPreview.effectiveDeg}°).`)}</p>`;
               actionButtonsHtml = `
-                <button class="primary-button" type="button" data-val-action="recalib">${isTobii ? "Re-validate" : "Recalibrate"}</button>
-                <button class="secondary-button" type="button" data-val-action="proceed">Proceed Anyway</button>`;
+                <button class="primary-button" type="button" data-val-action="recalib">${isTobii ? "重新驗證 / Re-validate" : "重新校正 / Recalibrate"}</button>
+                <button class="secondary-button" type="button" data-val-action="proceed">繼續 / Proceed Anyway</button>`;
             }
           }
 
@@ -3153,21 +3265,21 @@
             <div id="webgazer-validate-container">
               <div class="webgazer-validate-card">
                 <p class="eyebrow" style="color:var(--cyan, #63e6ff); text-transform:uppercase; font-size:12px; font-weight:700; letter-spacing:0.08em; margin-bottom:6px;">${sourceName} Validation</p>
-                <h2>Gaze Tracking Accuracy</h2>
-                <p style="margin-bottom:16px;">5-point fixation accuracy assessment completed:</p>
+                <h2>眼動追蹤準確度 / Gaze Tracking Accuracy</h2>
+                <p style="margin-bottom:16px;">五點注視驗證已完成 / Five-point fixation assessment completed:</p>
                 ${noticeHtml}
                 <div class="webgazer-validate-stat-grid">
                   <div class="webgazer-validate-stat-item">
-                    <span class="webgazer-validate-stat-label">Mean Angular Error</span>
+                    <span class="webgazer-validate-stat-label">平均角度誤差 / Mean Angular Error</span>
                     <span class="webgazer-validate-stat-value ${passed ? "pass" : "fail"}">${meanErrorDeg === null ? "N/A" : meanErrorDeg + "°"}</span>
                   </div>
                   <div class="webgazer-validate-stat-item">
-                    <span class="webgazer-validate-stat-label">Effective Hit Threshold (includes ${thresholdPreview.allowanceDeg}° allowance)</span>
+                    <span class="webgazer-validate-stat-label">有效命中門檻 / Effective Hit Threshold (includes ${thresholdPreview.allowanceDeg}° allowance)</span>
                     <span class="webgazer-validate-stat-value ${effectiveThresholdClass}">${hasEnoughData ? `${thresholdPreview.effectiveDeg}° (${effectiveThresholdArcmin}')` : "N/A"}</span>
                   </div>
                   <div class="webgazer-validate-stat-item">
-                    <span class="webgazer-validate-stat-label">Accuracy Status</span>
-                    <span class="webgazer-validate-stat-value ${passed ? "pass" : "fail"}">${passed ? "Passed" : "Needs Attention"}</span>
+                    <span class="webgazer-validate-stat-label">驗證狀態 / Accuracy Status</span>
+                    <span class="webgazer-validate-stat-value ${passed ? "pass" : "fail"}">${passed ? "通過 / Passed" : "需確認 / Needs Attention"}</span>
                   </div>
                 </div>
 
@@ -3263,7 +3375,14 @@
           }
         };
 
-        runPoint(0);
+        displayElement.innerHTML = `
+          <section class="app-page"><div class="app-shell stage-instruction-shell">
+            <h1>驗證前說明 / Before validation</h1>
+            <p class="lede">${bilingual("五點驗證會依序顯示中央與四個角落的視標。請保持頭部與觀看距離穩定，只用眼睛注視每個視標，不需點擊。", "Five-point validation presents targets at the center and four corners. Keep your head and viewing distance steady and look at each target without clicking.")}</p>
+            <p>${bilingual("系統會估計注視誤差，供本次訓練設定命中容許範圍。資料不足時需重新驗證；準備好後按下開始驗證，按 Esc 可返回選單。", "The measured gaze error helps set the hit tolerance for this session. Insufficient data requires validation again. Begin when ready, or press Esc to return to the menu.")}</p>
+            <button class="primary-button" type="button" data-val-action="begin">開始驗證 / Begin validation</button>
+          </div></section>`;
+        displayElement.querySelector("[data-val-action='begin']").addEventListener("click", () => runPoint(0), { once: true });
       }
     }
 
@@ -3351,12 +3470,36 @@
       return { practice_date: localDate, completed_practice_count: count, questionnaire_due: reasons.length > 0, reasons };
     }
 
+    function diplopiaGeometry(session) {
+      const settings = { ballArcmin: session.stimulus?.arcmin || session.settings?.ballArcmin || 60 };
+      const size = stimulusPixels(settings.ballArcmin, session.calibration, session.screen_pixels);
+      const limits = targetSpanLimits(settings, session.calibration);
+      const layout = targetSpanLayout("pursuit", {
+        ...settings, horizontalSpanArcmin: limits.horizontalArcmin, verticalSpanArcmin: limits.verticalArcmin
+      }, session.calibration, session.screen_pixels);
+      return {
+        width: session.viewport.width, height: session.viewport.height,
+        cx: session.viewport.width / 2, cy: session.viewport.height / 2,
+        rx: Math.max(0, Math.min(layout.width, session.viewport.width - size.width) / 2),
+        ry: Math.max(0, Math.min(layout.height, session.viewport.height - size.height) / 2),
+        targetWidth: size.width, targetHeight: size.height
+      };
+    }
+
+    function diplopiaPoint(direction, percent, session) {
+      const geometry = diplopiaGeometry(session);
+      return { x: geometry.cx + direction.x * percent / 100 * geometry.rx,
+        y: geometry.cy + direction.y * percent / 100 * geometry.ry };
+    }
+
     function diplopiaAngleDeg(direction, percent, session) {
       const calibration = session.calibration;
       const screen = session.screen_pixels;
-      const dxCm = direction.x * percent / 100 * session.viewport.width / 2 * calibration.screenWidthCm / screen.width;
-      const dyCm = direction.y * percent / 100 * session.viewport.height / 2 * calibration.screenHeightCm / screen.height;
-      return round(Math.atan2(Math.hypot(dxCm, dyCm), calibration.viewingDistanceCm) * 180 / Math.PI, 3);
+      const point = diplopiaPoint(direction, percent, session);
+      const dxCm = (point.x - session.viewport.width / 2) * calibration.screenWidthCm / screen.width;
+      const dyCm = (point.y - session.viewport.height / 2) * calibration.screenHeightCm / screen.height;
+      // A center-to-target angle is half the symmetric span of twice that offset.
+      return round(visualAngleArcmin(2 * Math.hypot(dxCm, dyCm), calibration.viewingDistanceCm) / 120, 3);
     }
 
     function diplopiaResultsMarkup(session) {
@@ -3364,64 +3507,73 @@
       const measuredAt = questionnaire?.submitted_at;
       return `
         <section class="diplopia-results" lang="zh-Hant" aria-label="各方向複視角度">
-          <h2>各方向複視角度</h2>
-          <p>${questionnaire ? `${session.diplopia_questionnaire_status === "carried_forward" ? "沿用最近一次問卷" : "本次問卷"} · 填答時間：${escapeHtml(measuredAt)} · ${escapeHtml(MODULES[questionnaire.source_module]?.code || "")}` : "尚無複視問卷紀錄"}</p>
+          <h2>各方向複視角度 / Diplopia onset angles</h2>
+          <p>${questionnaire ? `${session.diplopia_questionnaire_status === "carried_forward" ? "沿用最近一次問卷 / Previous report" : "已完成問卷 / Completed report"} · ${escapeHtml(measuredAt)} · ${escapeHtml(MODULES[questionnaire.source_module]?.code || "主動填寫 / Manual")}` : "尚無複視問卷紀錄 / No diplopia report yet"}</p>
           <dl class="diplopia-result-grid">
             ${DIPLOPIA_DIRECTIONS.map(dir => {
               const response = questionnaire?.responses.find(answer => answer.direction === dir.key);
               const value = !response ? "未測量" : response.no_diplopia ? "× 無複視" : `${formatNumber(response.onset_angle_deg, 2)}°`;
-              return `<div><dt>${dir.label}</dt><dd>${value}</dd></div>`;
+              return `<div><dt>${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</dt><dd>${value}${response?.no_diplopia ? " / No diplopia" : ""}</dd></div>`;
             }).join("")}
           </dl>
-          <p class="field-hint">角度以正前方為 0°，依填答時的螢幕尺寸及觀看距離換算。</p>
+          <p class="field-hint">${bilingual("角度以正前方為 0°，依填答時的螢幕尺寸及觀看距離換算。這是中心到單側起點的角度；訓練範圍顯示的是兩側總角度。", "Angles are measured from straight ahead (0°), using the display dimensions and viewing distance recorded with the report. Each value is a one-sided angle from center; training spans show the total angle between opposite sides.")}</p>
+          ${questionnaire?.source_module === "manual" ? '<button class="secondary-button" type="button" data-export-diplopia>匯出複視 JSON / Export report JSON</button>' : ""}
         </section>`;
     }
 
-    function showDiplopiaQuestionnaire(displayElement, session, onSubmit) {
+    function showDiplopiaQuestionnaire(displayElement, session, onSubmit, onCancel) {
       const startedAt = new Date().toISOString();
+      let stimulusType = session.stimulus?.type || session.settings?.stimulusType || "white_dot";
+      if (!Object.hasOwn(STIMULUS_TYPES, stimulusType)) stimulusType = "white_dot";
+      const styleOptions = () => Object.keys(STIMULUS_TYPES).map((key, index) =>
+        `<option value="${key}" ${key === stimulusType ? "selected" : ""}>${["白點", "白點中有紅點", "數字球"][index]} / ${STIMULUS_TYPES[key].name}</option>`).join("");
       displayElement.innerHTML = `
         <section class="app-page" lang="zh-Hant" aria-labelledby="diplopia-title">
           <div class="app-shell diplopia-shell">
-            <h1 id="diplopia-title" tabindex="-1">複視位置問卷</h1>
-            <p class="lede">${MODULES[session.module].code} 已完成 · 受試者：${escapeHtml(session.subject_id)} · 累計第 ${session.diplopia_schedule.completed_practice_count} 次練習</p>
-            <p id="diplopia-instructions">請分別標示八個方向開始出現複視的位置。可開啟全螢幕沿方向線拖曳、移動滑桿，或輸入位置百分比；沒有複視，請勾選「× 無複視」。</p>
-            <p class="field-hint">中心為 0%，該方向螢幕邊緣為 100%。系統依螢幕尺寸及觀看距離換算複視角度，所有八個方向都需填答。</p>
+            <h1 id="diplopia-title" tabindex="-1">複視位置問卷 / Diplopia report</h1>
+            <p class="lede">${session.module === "manual" ? "主動填寫 / Manual report" : `${MODULES[session.module].code} 已完成 / Completed · 累計練習 / Completed practices: ${session.diplopia_schedule.completed_practice_count}`} · 受試者 / Participant: ${escapeHtml(session.subject_id)}</p>
+            <p id="diplopia-instructions">${bilingual("請保持頭部與距離穩定，沿八個方向分別移動視標，標示開始出現複視的位置。可全螢幕拖曳、移動滑桿或輸入百分比；沒有複視請勾選「× 無複視」。", "Keep your head and viewing distance steady. Move the target along each of the eight directions and mark where double vision begins. Drag in fullscreen, use the slider, or enter a percentage. Select No diplopia if none occurs.")}</p>
+            <p class="field-hint">${bilingual("中心為 0%，扣除視標半徑後的最大可顯示位置為 100%，與 Pursuit、Saccade、Fixation 的範圍上限共用計算。此處角度為中心到起點的單側角度，八個方向皆需填答。", "The center is 0%; 100% is the furthest target-center position with room for the target radius, using the same span limits as Pursuit, Saccade and Fixation. Reported angles run from center to onset on one side. Complete all eight directions.")}</p>
             <form id="diplopia-form" novalidate aria-describedby="diplopia-instructions">
+              <label for="diplopia-stimulus-type">視標樣式 / Target style</label>
+              <select id="diplopia-stimulus-type">${styleOptions()}</select>
               <div class="diplopia-layout">
                 <figure id="diplopia-figure" class="diplopia-figure">
                   <svg id="diplopia-chart" viewBox="0 0 480 480" role="img" aria-label="八方向複視位置圖，亦可使用各方向的輸入欄位填答">
                     <g id="diplopia-background"></g>
                     ${DIPLOPIA_DIRECTIONS.map(dir => `<g data-diplopia-marker="${dir.key}"></g>`).join("")}
                   </svg>
-                  <figcaption>● 複視起點　× 無複視</figcaption>
-                  <button id="diplopia-open-picker" class="secondary-button" type="button">全螢幕拖曳標記</button>
-                  <button id="diplopia-toggle-controls" class="secondary-button diplopia-toggle-controls" type="button" hidden aria-expanded="true">隱藏操作列</button>
+                  <figcaption>● 複視起點 / Onset　× 無複視 / No diplopia</figcaption>
+                  <button id="diplopia-open-picker" class="secondary-button" type="button">全螢幕標記 / Mark in fullscreen</button>
+                  <button id="diplopia-toggle-controls" class="secondary-button diplopia-toggle-controls" type="button" hidden aria-expanded="true">隱藏操作列 / Hide controls</button>
                   <div id="diplopia-picker-controls" class="diplopia-picker-controls" hidden>
-                    <p>沿方向線拖曳圓點，找出開始複視的位置。</p>
+                    <p>${bilingual("沿方向線拖曳視標，找出開始複視的位置。", "Drag the target along a direction to find where double vision begins.")}</p>
+                    <label for="diplopia-picker-stimulus-type">視標樣式 / Target style</label>
+                    <select id="diplopia-picker-stimulus-type">${styleOptions()}</select>
                     <div class="diplopia-picker-row">
-                      <label for="diplopia-picker-direction">方向</label>
-                      <select id="diplopia-picker-direction">${DIPLOPIA_DIRECTIONS.map(dir => `<option value="${dir.key}">${dir.label}</option>`).join("")}</select>
+                      <label for="diplopia-picker-direction">方向 / Direction</label>
+                      <select id="diplopia-picker-direction">${DIPLOPIA_DIRECTIONS.map(dir => `<option value="${dir.key}">${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</option>`).join("")}</select>
                       <output id="diplopia-picker-value" aria-live="polite">尚未標記</output>
                     </div>
                     <label class="sr-only" for="diplopia-picker-slider">所選方向的複視起點（%）</label>
                     <input id="diplopia-picker-slider" type="range" min="0" max="100" step="0.1" value="0" />
                     <div class="diplopia-picker-row">
-                      <label class="diplopia-none" for="diplopia-picker-none"><input id="diplopia-picker-none" type="checkbox" /> 本方向無複視</label>
+                      <label class="diplopia-none" for="diplopia-picker-none"><input id="diplopia-picker-none" type="checkbox" /> 無複視 / No diplopia</label>
                       <span id="diplopia-picker-progress" role="status">0 / 8</span>
-                      <button id="diplopia-marking-done" class="secondary-button" type="button">檢查八方向答案</button>
+                      <button id="diplopia-marking-done" class="secondary-button" type="button">檢查八方向答案 / Review answers</button>
                     </div>
                   </div>
                 </figure>
                 <div class="diplopia-fields">
                   ${DIPLOPIA_DIRECTIONS.map(dir => `
                     <fieldset class="diplopia-field">
-                      <legend>${dir.label}</legend>
+                      <legend>${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</legend>
                       <div class="diplopia-answer">
                         <label for="diplopia-${dir.key}" class="sr-only">${dir.label}方向複視起點（%）</label>
                         <input id="diplopia-${dir.key}" type="number" min="0" max="100" step="any" inputmode="decimal" placeholder="0–100" aria-describedby="diplopia-instructions" />
                         <span aria-hidden="true">%</span>
                         <label class="diplopia-none" for="no-diplopia-${dir.key}">
-                          <input id="no-diplopia-${dir.key}" type="checkbox" /> × 無複視
+                          <input id="no-diplopia-${dir.key}" type="checkbox" /> × 無複視 / No diplopia
                         </label>
                       </div>
                       <output id="diplopia-angle-${dir.key}" class="diplopia-angle" aria-live="polite">尚未標記</output>
@@ -3431,7 +3583,8 @@
               <p id="diplopia-error" class="form-error" role="alert"></p>
               <div class="form-actions diplopia-submit-actions">
                 <p id="diplopia-progress" role="status">已填答 0 / 8 個方向</p>
-                <button class="primary-button" type="submit">送出問卷並返回選單</button>
+                ${onCancel ? '<button id="diplopia-cancel" class="secondary-button" type="button">取消 / Cancel</button>' : ""}
+                <button class="primary-button" type="submit">送出並返回選單 / Submit and return</button>
               </div>
             </form>
           </div>
@@ -3448,6 +3601,8 @@
       const slider = displayElement.querySelector("#diplopia-picker-slider");
       const pickerNone = displayElement.querySelector("#diplopia-picker-none");
       const toggleControls = displayElement.querySelector("#diplopia-toggle-controls");
+      const styleInput = displayElement.querySelector("#diplopia-stimulus-type");
+      const pickerStyleInput = displayElement.querySelector("#diplopia-picker-stimulus-type");
       const fields = DIPLOPIA_DIRECTIONS.map(dir => ({
         ...dir,
         input: form.querySelector(`#diplopia-${dir.key}`),
@@ -3458,37 +3613,48 @@
       let pickerOpen = false;
       let selected = fields[0];
       let drag = null;
+      let targetColor = VOR_COLORS[0];
+      let targetDigit = 0;
       let chartGeometry = { width: 480, height: 480, cx: 240, cy: 240, rx: 190, ry: 190 };
+      const targetMarkup = (x, y) => {
+        const geometry = diplopiaGeometry(session);
+        const scale = pickerOpen ? 1 : Math.min(380 / (geometry.rx * 2 || 1), 380 / (geometry.ry * 2 || 1));
+        const rx = geometry.targetWidth / 2 * scale;
+        const ry = geometry.targetHeight / 2 * scale;
+        return `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${stimulusType === "numbers_dot" ? targetColor : "#ffffff"}" />`
+          + (stimulusType === "red_in_white" ? `<ellipse cx="${x}" cy="${y}" rx="${rx * .32}" ry="${ry * .32}" fill="#ef4444" />` : "")
+          + (stimulusType === "numbers_dot" ? `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(rx, ry) * 1.1}" font-weight="950" fill="${contrastingText(targetColor)}">${targetDigit}</text>` : "");
+      };
       const hasPosition = field => field.input.value.trim() !== "" && Number.isFinite(Number(field.input.value))
         && Number(field.input.value) >= 0 && Number(field.input.value) <= 100;
-      const update = () => {
+      const update = (clearError = true) => {
         let answered = 0;
         fields.forEach(field => {
           field.input.disabled = field.none.checked;
           const valid = hasPosition(field);
           if (field.none.checked || valid) answered++;
           const fraction = field.none.checked ? 1 : Number(field.input.value) / 100;
-          const x = Math.max(7, Math.min(chartGeometry.width - 7, chartGeometry.cx + field.x * chartGeometry.rx * fraction));
-          const y = Math.max(7, Math.min(chartGeometry.height - 7, chartGeometry.cy + field.y * chartGeometry.ry * fraction));
+          const x = chartGeometry.cx + field.x * chartGeometry.rx * fraction;
+          const y = chartGeometry.cy + field.y * chartGeometry.ry * fraction;
           field.marker.innerHTML = field.none.checked
             ? `<path d="M ${x - 6} ${y - 6} l 12 12 M ${x + 6} ${y - 6} l -12 12" class="diplopia-mark" />`
-            : valid ? `<circle cx="${x}" cy="${y}" r="6" fill="currentColor" />` : "";
-          field.angle.textContent = field.none.checked ? "× 無複視"
-            : valid ? `複視起點 ${formatNumber(diplopiaAngleDeg(field, Number(field.input.value), session), 2)}°` : "尚未標記";
+            : valid ? targetMarkup(x, y) : field === selected ? targetMarkup(chartGeometry.cx, chartGeometry.cy) : "";
+          field.angle.textContent = field.none.checked ? "× 無複視 / No diplopia"
+            : valid ? `複視起點 / Onset ${formatNumber(diplopiaAngleDeg(field, Number(field.input.value), session), 2)}°` : "尚未標記 / Not marked";
         });
-        displayElement.querySelector("#diplopia-progress").textContent = `已填答 ${answered} / 8 個方向`;
+        displayElement.querySelector("#diplopia-progress").textContent = `已填答 / Answered ${answered} / 8`;
         displayElement.querySelector("#diplopia-picker-progress").textContent = `${answered} / 8`;
         directionInput.value = selected.key;
         slider.value = hasPosition(selected) ? selected.input.value : "0";
         slider.disabled = selected.none.checked;
         pickerNone.checked = selected.none.checked;
-        displayElement.querySelector("#diplopia-picker-value").textContent = selected.none.checked ? "× 無複視"
-          : hasPosition(selected) ? `${selected.input.value}% · ${selected.angle.textContent}` : "尚未標記";
-        setError(error, "");
+        displayElement.querySelector("#diplopia-picker-value").textContent = selected.none.checked ? "× 無複視 / No diplopia"
+          : hasPosition(selected) ? `${selected.input.value}% · ${selected.angle.textContent}` : "尚未標記 / Not marked";
+        if (clearError) setError(error, "");
       };
       const renderChart = () => {
         chartGeometry = pickerOpen
-          ? { width: window.innerWidth, height: window.innerHeight, cx: window.innerWidth / 2, cy: window.innerHeight / 2, rx: window.innerWidth / 2, ry: window.innerHeight / 2 }
+          ? diplopiaGeometry(session)
           : { width: 480, height: 480, cx: 240, cy: 240, rx: 190, ry: 190 };
         const { width, height, cx, cy, rx, ry } = chartGeometry;
         chart.setAttribute("viewBox", `0 0 ${width} ${height}`);
@@ -3503,26 +3669,47 @@
         figure.classList.toggle("is-fullscreen-picker", open);
         controls.hidden = !open;
         toggleControls.hidden = !open;
-        toggleControls.textContent = "隱藏操作列";
+        toggleControls.textContent = "隱藏操作列 / Hide controls";
         toggleControls.setAttribute("aria-expanded", String(open));
         openButton.hidden = open;
         displayElement.querySelector(".diplopia-fields").inert = open;
         displayElement.querySelector(".diplopia-submit-actions").inert = open;
+        styleInput.inert = open;
         renderChart();
         if (open) directionInput.focus({ preventScroll: true });
+        else openButton.focus({ preventScroll: true });
       };
       toggleControls.addEventListener("click", () => {
         controls.hidden = !controls.hidden;
-        toggleControls.textContent = controls.hidden ? "顯示操作列" : "隱藏操作列";
+        toggleControls.textContent = controls.hidden ? "顯示操作列 / Show controls" : "隱藏操作列 / Hide controls";
         toggleControls.setAttribute("aria-expanded", String(!controls.hidden));
       });
       openButton.addEventListener("click", async () => {
         if (!fullscreenElement() && !await requestFullscreenSafely()) {
-          setError(error, "請允許全螢幕顯示，再開啟複視位置標記。");
+          setError(error, "請允許全螢幕顯示，再開啟複視位置標記。 / Allow fullscreen before marking positions.");
           return;
+        }
+        if (session.viewport.width !== window.innerWidth || session.viewport.height !== window.innerHeight) {
+          session.viewport = { width: window.innerWidth, height: window.innerHeight };
+          session.screen_pixels = currentScreenPixels();
+          fields.forEach(field => { field.input.value = ""; field.none.checked = false; });
         }
         setPickerOpen(true);
       });
+      [styleInput, pickerStyleInput].forEach(input => input.addEventListener("change", () => {
+        stimulusType = Object.hasOwn(STIMULUS_TYPES, input.value) ? input.value : "white_dot";
+        styleInput.value = pickerStyleInput.value = stimulusType;
+        update();
+      }));
+      const numberTimer = setInterval(() => {
+        if (stimulusType !== "numbers_dot") return;
+        let color, digit;
+        do color = VOR_COLORS[Math.floor(Math.random() * VOR_COLORS.length)]; while (color === targetColor);
+        do digit = Math.floor(Math.random() * 10); while (digit === targetDigit);
+        targetColor = color;
+        targetDigit = digit;
+        update(false);
+      }, session.settings?.changeMs || session.stimulus?.change_ms || 500);
       displayElement.querySelector("#diplopia-marking-done").addEventListener("click", () => {
         setPickerOpen(false);
         void exitFullscreenSafely();
@@ -3608,39 +3795,64 @@
         if (point) markPosition(nearestField(point), point);
       });
       const onPickerFullscreenChange = () => { if (pickerOpen && !fullscreenElement()) setPickerOpen(false); };
-      const onPickerResize = () => { if (pickerOpen) renderChart(); };
+      const onPickerResize = () => {
+        if (pickerOpen && (session.viewport.width !== window.innerWidth || session.viewport.height !== window.innerHeight)) {
+          setPickerOpen(false);
+          void exitFullscreenSafely();
+          setError(error, "畫面尺寸已變更；請重新開啟全螢幕並填寫八方向。 / Display size changed. Reopen fullscreen and mark all eight directions again.");
+        }
+      };
+      const onPickerKeyDown = event => {
+        if (event.key === "Escape" && pickerOpen) { setPickerOpen(false); void exitFullscreenSafely(); }
+      };
       document.addEventListener("fullscreenchange", onPickerFullscreenChange);
+      document.addEventListener("keydown", onPickerKeyDown);
       window.addEventListener("resize", onPickerResize);
       let submitted = false;
+      const cleanup = () => {
+        clearInterval(numberTimer);
+        document.removeEventListener("fullscreenchange", onPickerFullscreenChange);
+        document.removeEventListener("keydown", onPickerKeyDown);
+        window.removeEventListener("resize", onPickerResize);
+      };
+      if (onCancel) displayElement.querySelector("#diplopia-cancel").addEventListener("click", () => {
+        if (submitted) return;
+        submitted = true;
+        cleanup();
+        onCancel();
+      });
       form.addEventListener("submit", event => {
         event.preventDefault();
         if (submitted) return;
         const missing = fields.filter(field => !field.none.checked && !hasPosition(field));
         if (missing.length) {
-          setError(error, `請填寫${missing.map(field => `「${field.label}」`).join("、")}方向的複視起點（0–100%），或勾選「× 無複視」。`);
+          setError(error, `請填寫${missing.map(field => `「${field.label} / ${DIRECTION_ENGLISH_LABELS[field.key]}」`).join("、")}方向的複視起點（0–100%），或勾選「× 無複視」。 / Mark each missing direction (0–100%) or select No diplopia.`);
           missing[0].input.focus();
           return;
         }
         submitted = true;
-        document.removeEventListener("fullscreenchange", onPickerFullscreenChange);
-        window.removeEventListener("resize", onPickerResize);
+        cleanup();
         onSubmit({
           started_at: startedAt,
           submitted_at: new Date().toISOString(),
-          position_reference: "0% = viewport center; 100% = directional edge of training viewport",
+          position_reference: "0% = viewport center; 100% = maximum target-center excursion using training span limits and target radius clearance",
           viewport: { ...session.viewport },
           screen_pixels: { ...session.screen_pixels },
           calibration: { ...session.calibration },
+          stimulus: { type: stimulusType, arcmin: session.stimulus?.arcmin || session.settings?.ballArcmin || 60,
+            width_px: diplopiaGeometry(session).targetWidth, height_px: diplopiaGeometry(session).targetHeight,
+            change_ms: session.settings?.changeMs || session.stimulus?.change_ms || 500 },
           angle_reference: "Degrees from straight ahead: atan2(radial screen offset in cm, viewing distance in cm)",
           responses: fields.map(field => {
             const fraction = field.none.checked ? null : Number(field.input.value) / 100;
+            const point = fraction === null ? null : diplopiaPoint(field, Number(field.input.value), session);
             return {
               direction: field.key,
               no_diplopia: field.none.checked,
               onset_percent: fraction === null ? null : Number(field.input.value),
               onset_angle_deg: fraction === null ? null : diplopiaAngleDeg(field, Number(field.input.value), session),
-              onset_x_norm: fraction === null ? null : (1 + field.x * fraction) / 2,
-              onset_y_norm: fraction === null ? null : (1 + field.y * fraction) / 2
+              onset_x_norm: point === null ? null : point.x / session.viewport.width,
+              onset_y_norm: point === null ? null : point.y / session.viewport.height
             };
           })
         });
@@ -5119,7 +5331,8 @@
         {
           timeline: [
             {
-              timeline: [{
+              timeline: [{ type: StageInstructionPlugin, stage: "calibration" }, {
+                timeline: [{
                 type: window.jsPsychWebgazerCalibrate,
                 calibration_points: [
                   [10, 10], [50, 10], [90, 10],
@@ -5131,6 +5344,9 @@
                 point_size: 24,
                 randomize_calibration_order: true,
                 data: { action: "webgazer_calibrated" },
+                on_load() {
+                  jsPsych.getDisplayElement().insertAdjacentHTML("beforeend", `<p class="calibration-instruction">${bilingual("每次先注視圓點，再點擊一次；每個位置會出現兩次。請保持頭部與距離穩定。", "Look at each dot, then click once. Each location appears twice. Keep your head and viewing distance steady.")}</p>`);
+                },
                 on_start() {
                   calibrationStartViewport = currentViewportSignature();
                   try { jsPsych.extensions.webgazer.resetCalibration(); } catch (error) { /* First calibration has no prior model. */ }
@@ -5157,6 +5373,7 @@
                   data.webgazer_calibrated_at = AppState.eyeTracking.calibratedAt;
                   data.webgazer_calibration_viewport = finishedViewport;
                 }
+                }], conditional_function: () => Boolean(AppState.pending)
               }],
               conditional_function: () => Boolean(
                 AppState.pending &&
@@ -5269,16 +5486,22 @@
         { type: MenuPlugin },
         webgazerSetupNode,
         {
-          timeline: webgazerTrainingTrial ? [webgazerTrainingTrial] : [],
+          timeline: webgazerTrainingTrial ? [{ type: StageInstructionPlugin, stage: "training" }, {
+            timeline: [webgazerTrainingTrial], conditional_function: () => Boolean(AppState.pending)
+          }] : [],
           conditional_function: webgazerSessionIsReady
         },
         tobiiSetupNode,
         {
-          timeline: [tobiiTrainingTrial],
+          timeline: [{ type: StageInstructionPlugin, stage: "training" }, {
+            timeline: [tobiiTrainingTrial], conditional_function: () => Boolean(AppState.pending)
+          }],
           conditional_function: tobiiSessionIsReady
         },
         {
-          timeline: [untrackedTrainingTrial],
+          timeline: [{ type: StageInstructionPlugin, stage: "training" }, {
+            timeline: [untrackedTrainingTrial], conditional_function: () => Boolean(AppState.pending)
+          }],
           conditional_function: () => Boolean(
             AppState.pending && AppState.pending.eyeTrackingSource === EYE_SOURCE_OFF
           )
