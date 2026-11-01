@@ -4,6 +4,9 @@
   "private": true,
   "license": "AGPL-3.0-only",
   "scripts": {
+    "prepare": "node scripts/install-git-hooks.mjs",
+    "test:hooks": "node --test scripts/pre-push.test.mjs",
+    "test:ci": "npm run test:hooks && npm test && npm run test:native -- --locked",
     "dev": "tauri dev",
     "build": "tauri build --no-bundle && node scripts/package-portable.cjs",
     "prepare:analysis": "node scripts/prepare-analysis.cjs",
