@@ -281,8 +281,74 @@
       if (Math.hypot(...normal) < 1e-6) return null;
       return {
         yaw: -Math.atan2(normal[0], -normal[2]),
-        pitch: Math.atan2(normal[1], Math.hypot(normal[0], normal[2]))
+        pitch: Math.atan2(normal[1], Math.hypot(normal[0], normal[2])),
+        roll: Math.atan2(horizontal[1], horizontal[0])
       };
+    }
+
+    class HeadPositionMonitor {
+      constructor() {
+        this.neutral = null;
+        this.ready = false;
+        this.baselineSamples = [];
+        this.resetSignal();
+      }
+
+      resetSignal() {
+        this.lastTimestamp = null;
+        this.recent = [];
+        this.filtered = null;
+        this.pendingSince = null;
+        this.warning = false;
+        this.deviationDeg = null;
+        this.baselineSamples = [];
+      }
+
+      update(pose, timestamp) {
+        const axes = ["yaw", "pitch", "roll"];
+        const median = values => {
+          const sorted = [...values].sort((a, b) => a - b);
+          const middle = Math.floor(sorted.length / 2);
+          return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+        };
+        if (!pose || !Number.isFinite(timestamp) || axes.some(axis => !Number.isFinite(pose[axis]))) {
+          this.resetSignal();
+          return;
+        }
+        if (this.lastTimestamp !== null && timestamp <= this.lastTimestamp) return;
+        if (this.lastTimestamp !== null && timestamp - this.lastTimestamp > 250) this.resetSignal();
+        const elapsed = this.lastTimestamp === null ? 0 : timestamp - this.lastTimestamp;
+        this.lastTimestamp = timestamp;
+        const difference = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+        if (!this.ready) {
+          const first = this.baselineSamples[0]?.pose || pose;
+          const spread = Math.hypot(...axes.map(axis => difference(pose[axis], first[axis]))) * 180 / Math.PI;
+          if (spread > 1) this.baselineSamples = [];
+          this.baselineSamples.push({ pose, timestamp });
+          if (this.baselineSamples.length < 5 || timestamp - this.baselineSamples[0].timestamp < 600) return;
+          const reference = this.baselineSamples[0].pose;
+          this.neutral = Object.fromEntries(axes.map(axis => [axis,
+            reference[axis] + median(this.baselineSamples.map(sample => difference(sample.pose[axis], reference[axis])))
+          ]));
+          this.ready = true;
+          this.baselineSamples = [];
+        }
+
+        // Count camera inferences, not display frames; a frozen pose cannot satisfy the dwell time.
+        this.recent.push(axes.map(axis => difference(pose[axis], this.neutral[axis]) * 180 / Math.PI));
+        if (this.recent.length > 5) this.recent.shift();
+        const signal = axes.map((_, index) => median(this.recent.map(sample => sample[index])));
+        const alpha = -Math.expm1(-elapsed / 120);
+        this.filtered = this.filtered ? signal.map((value, index) => this.filtered[index] + alpha * (value - this.filtered[index])) : signal;
+        this.deviationDeg = Math.hypot(...this.filtered);
+        const pending = this.warning ? this.deviationDeg <= 2.3 : this.deviationDeg > 3;
+        if (!pending) this.pendingSince = null;
+        else if (this.pendingSince === null) this.pendingSince = timestamp;
+        else if (timestamp - this.pendingSince >= 300) {
+          this.warning = !this.warning;
+          this.pendingSince = null;
+        }
+      }
     }
 
     function vorTargetPoint(pose, neutral, settings, calibration, screenPixels, geometry) {
@@ -302,6 +368,14 @@
 
     function pendingVorHeadTracking() {
       return AppState.pending?.module === "vor" && Number(AppState.pending.settings.vorGain) > 1;
+    }
+
+    function needsHeadPositionWarning(moduleKey) {
+      return ["pursuit", "saccade", "fixation"].includes(moduleKey);
+    }
+
+    function pendingHeadTracking() {
+      return pendingVorHeadTracking() || needsHeadPositionWarning(AppState.pending?.module);
     }
 
     if (WEBGAZER_COMPONENTS_AVAILABLE) installMonocularWebGazerModels(window.webgazer);
@@ -990,7 +1064,7 @@
 
     function recordTobiiSample(payload) {
       const active = AppState.tobii.activeTrial;
-      if (!active) return;
+      if (!active || active.waitingForHeadCenter) return;
       const receivedAt = performance.now();
       const directBridgeTime = optionalNumber(bridgeField(payload, "bridgeMonotonicMs", "bridge_monotonic_ms"));
       const bridgeMicroseconds = optionalNumber(bridgeField(payload, "monotonicTimestampMicroseconds", "monotonic_timestamp_microseconds"));
@@ -1011,7 +1085,7 @@
     function recordTobiiEyePositions(payload) {
       const active = AppState.tobii.activeTrial;
       const timestamp = optionalNumber(bridgeField(payload, "deviceTimestampMicroseconds", "device_timestamp_microseconds"));
-      if (!active || timestamp === null || active.eyeSamples.length >= MAX_GAZE_SAMPLES_PER_TRIAL) return;
+      if (!active || active.waitingForHeadCenter || timestamp === null || active.eyeSamples.length >= MAX_GAZE_SAMPLES_PER_TRIAL) return;
       const last = active.eyeSamples[active.eyeSamples.length - 1];
       // Matching by timestamp relies on this list staying sorted.
       if (last && timestamp <= last.device_timestamp_us) return;
@@ -2438,11 +2512,7 @@
             alert("請允許全螢幕後再填寫複視自述。 / Allow fullscreen before completing the diplopia report.");
             return;
           }
-          const latest = readDiplopiaProgress(participantId).latest_questionnaire;
-          let stimulus = latest?.stimulus || { type: "white_dot", arcmin: 60 };
-          if (targetFitError("pursuit", { ballArcmin: stimulus.arcmin }, AppState.calibration)) {
-            stimulus = { type: stimulus.type, arcmin: 60 };
-          }
+          const stimulus = { type: "white_dot", arcmin: DIPLOPIA_TARGET_ARCMIN };
           if (targetFitError("pursuit", { ballArcmin: stimulus.arcmin }, AppState.calibration)) {
             await exitFullscreenSafely();
             settled = false;
@@ -2697,8 +2767,8 @@
                 return;
               }
               const eyeTrackingSource = AppState.eyeTracking.source;
-              if (moduleKey === "vor" && result.values.vorGain > 1 && !WEBGAZER_COMPONENTS_AVAILABLE) {
-                setError(error, "VOR above 1x requires the camera tracking component. Reload the application and try again.");
+              if ((needsHeadPositionWarning(moduleKey) || (moduleKey === "vor" && result.values.vorGain > 1)) && !WEBGAZER_COMPONENTS_AVAILABLE) {
+                setError(error, "This training requires the camera tracking component. Reload the application and try again.");
                 return;
               }
               if (eyeTrackingSource === EYE_SOURCE_TOBII && !AppState.tobii.hardwareCalibrationConfirmed) {
@@ -2951,8 +3021,10 @@
 
       trial(displayElement, trial, onLoad) {
         const extension = this.jsPsych.extensions.webgazer;
-        const headTracking = pendingVorHeadTracking();
-        const headOnly = headTracking && !AppState.pending.eyeTrackingEnabled;
+        const headTracking = pendingHeadTracking();
+        const headWarning = needsHeadPositionWarning(AppState.pending?.module);
+        const headOnly = headTracking && AppState.pending.eyeTrackingSource !== EYE_SOURCE_WEBGAZER;
+        const moduleName = MODULES[AppState.pending?.module]?.code || "training";
         const startedAt = performance.now();
         let finished = false;
         let faceTimer = null;
@@ -2988,9 +3060,9 @@
               <div class="app-shell" style="max-width:760px">
                 <p class="eyebrow">WebGazer setup</p>
                 <h1>攝影機定位 / Camera positioning</h1>
-                <p class="lede">${headTracking ? bilingual("請看向正前方並保持頭部穩定，此姿勢會作為 VOR 頭動追蹤的中心。", "Look straight ahead and keep your head still. This position will be the center for VOR head tracking.") : bilingual("保持頭部穩定，調整臉部位置直到攝影機顯示可追蹤，再繼續九點校正。", "Keep your head still and position your face until the camera guide indicates that tracking is ready. Continue to nine-point calibration.")}</p>
+                <p class="lede">${headWarning ? bilingual("請將頭部置中、看向螢幕正中央並保持穩定。訓練開始前會建立正中參考姿勢，偏移超過 3° 且持續一段時間時，畫面外框會出現紅色脈動光，請將頭部轉回正中。即使眼動追蹤為 Off 或 Tobii，仍需攝影機監測頭位。", "Center your head, look at the middle of the screen and hold still. Training establishes a neutral head position. A sustained deviation over 3° triggers a pulsing red border; return your head to center. The camera is needed even with eye tracking Off or Tobii.") : headTracking ? bilingual("請看向正前方並保持頭部穩定，此姿勢會作為 VOR 頭動追蹤的中心。", "Look straight ahead and keep your head still. This position will be the center for VOR head tracking.") : bilingual("保持頭部穩定，調整臉部位置直到攝影機顯示可追蹤，再繼續九點校正。", "Keep your head still and position your face until the camera guide indicates that tracking is ready. Continue to nine-point calibration.")}</p>
                 <div class="webgazer-camera-actions">
-                  <button id="webgazer-camera-continue" class="primary-button" type="button" disabled>${headOnly ? "繼續 VOR / Continue to VOR" : "繼續校正 / Continue to calibration"}</button>
+                  <button id="webgazer-camera-continue" class="primary-button" type="button" disabled>${headOnly ? `繼續 ${moduleName} / Continue to ${moduleName}` : "繼續校正 / Continue to calibration"}</button>
                   <button id="webgazer-camera-skip" class="secondary-button" type="button">${headTracking ? "取消訓練 / Cancel training" : "不使用眼動追蹤 / Continue without eye tracking"}</button>
                 </div>
               </div>
@@ -3004,7 +3076,8 @@
             try { detected = Boolean(extension.faceDetected()); } catch (error) { detected = false; }
             if (headTracking) {
               const tracker = window.webgazer?.getTracker?.();
-              detected = Boolean(vorHeadPose(tracker?.getPositions?.())) && performance.now() - tracker.positionsTimestamp < 500;
+              const age = performance.now() - tracker?.positionsTimestamp;
+              detected = Boolean(vorHeadPose(tracker?.getPositions?.())) && Number.isFinite(age) && age >= 0 && age < 250;
             }
             continueButton.disabled = !detected;
           };
@@ -3023,7 +3096,7 @@
               <div class="app-shell" style="max-width:760px">
                 <p class="eyebrow">WebGazer setup</p>
                 <h1>無法使用追蹤 / Eye tracking unavailable</h1>
-                <p class="lede">${headTracking ? bilingual("大於 1x 的 VOR 需要攝影機追蹤頭部。請確認相機權限後重試，或改選 1x 固定視標。", "VOR above 1x needs the camera for head tracking. Check camera access and try again, or select 1x for a stationary target.") : bilingual("攝影機無法啟動。可返回設定確認相機權限，或繼續不使用眼動追蹤的訓練。", "The camera could not be initialized. Check camera permissions in settings or continue without eye tracking.")}</p>
+                <p class="lede">${headWarning ? bilingual("此訓練需要攝影機監測頭位。請返回設定確認相機權限後重試。", "This training needs the camera to monitor head position. Return to settings, check camera access and try again.") : headTracking ? bilingual("大於 1x 的 VOR 需要攝影機追蹤頭部。請確認相機權限後重試，或改選 1x 固定視標。", "VOR above 1x needs the camera for head tracking. Check camera access and try again, or select 1x for a stationary target.") : bilingual("攝影機無法啟動。可返回設定確認相機權限，或繼續不使用眼動追蹤的訓練。", "The camera could not be initialized. Check camera permissions in settings or continue without eye tracking.")}</p>
                 <div class="webgazer-camera-actions">
                   <button id="webgazer-camera-fallback" class="primary-button" type="button">${headTracking ? "返回選單 / Return to menu" : "不使用眼動追蹤 / Continue without eye tracking"}</button>
                 </div>
@@ -3426,6 +3499,16 @@
       x: slot.key.startsWith("left") ? -1 : slot.key.startsWith("right") ? 1 : 0,
       y: slot.key.endsWith("Up") ? -1 : slot.key.endsWith("Down") ? 1 : 0
     }));
+    // BSV field charts test each meridian from fixation outward, starting straight up and going clockwise.
+    const DIPLOPIA_TEST_ORDER = ["middleUp", "rightUp", "rightMiddle", "rightDown", "middleDown", "leftDown", "leftMiddle", "leftUp"];
+    const DIPLOPIA_DONE_DOT_RADIUS = 4;
+    // BSV fields are plotted with the small Goldmann III target (4 mm² on a 300 mm bowl, 0.43°), not the training ball.
+    const DIPLOPIA_TARGET_ARCMIN = 25.8;
+    // Kinetic perimetry moves targets at about 2–5°/s; the sweep uses the slow end and holds at fixation briefly first.
+    const DIPLOPIA_SWEEP_DEG_PER_SEC = 2;
+    const DIPLOPIA_SWEEP_LEAD_MS = 1000;
+    // Shown in the fullscreen hint line whenever there is no newer status to report.
+    const DIPLOPIA_PICKER_GUIDE = "按「自動移動」，看到兩個視標就按空白鍵或點畫面；也可從中心慢慢拖曳。 / Start Auto sweep and press Space or tap when you see two targets, or drag slowly from the center.";
 
     const DIPLOPIA_PROGRESS_KEY = "oculomotor-diplopia-progress-v1";
     const diplopiaProgress = new Map();
@@ -3471,7 +3554,7 @@
     }
 
     function diplopiaGeometry(session) {
-      const settings = { ballArcmin: session.stimulus?.arcmin || session.settings?.ballArcmin || 60 };
+      const settings = { ballArcmin: DIPLOPIA_TARGET_ARCMIN };
       const size = stimulusPixels(settings.ballArcmin, session.calibration, session.screen_pixels);
       const limits = targetSpanLimits(settings, session.calibration);
       const layout = targetSpanLayout("pursuit", {
@@ -3492,14 +3575,25 @@
         y: geometry.cy + direction.y * percent / 100 * geometry.ry };
     }
 
-    function diplopiaAngleDeg(direction, percent, session) {
+    function diplopiaOffsetCm(direction, percent, session) {
       const calibration = session.calibration;
       const screen = session.screen_pixels;
       const point = diplopiaPoint(direction, percent, session);
-      const dxCm = (point.x - session.viewport.width / 2) * calibration.screenWidthCm / screen.width;
-      const dyCm = (point.y - session.viewport.height / 2) * calibration.screenHeightCm / screen.height;
+      return Math.hypot((point.x - session.viewport.width / 2) * calibration.screenWidthCm / screen.width,
+        (point.y - session.viewport.height / 2) * calibration.screenHeightCm / screen.height);
+    }
+
+    function diplopiaAngleDeg(direction, percent, session) {
       // A center-to-target angle is half the symmetric span of twice that offset.
-      return round(visualAngleArcmin(2 * Math.hypot(dxCm, dyCm), calibration.viewingDistanceCm) / 120, 3);
+      return round(visualAngleArcmin(2 * diplopiaOffsetCm(direction, percent, session), session.calibration.viewingDistanceCm) / 120, 3);
+    }
+
+    // Inverse of diplopiaAngleDeg: the position (0–100%) at which the target reaches an eccentricity in degrees.
+    function diplopiaPercentForAngle(direction, angleDeg, session) {
+      const reachCm = diplopiaOffsetCm(direction, 100, session);
+      // tan() wraps past 90°, so a late frame far beyond the edge must still count as the edge.
+      if (!(reachCm > 0) || angleDeg >= 90) return 100;
+      return Math.min(100, 100 * session.calibration.viewingDistanceCm * Math.tan(angleDeg * Math.PI / 180) / reachCm);
     }
 
     function diplopiaResultsMarkup(session) {
@@ -3512,56 +3606,54 @@
           <dl class="diplopia-result-grid">
             ${DIPLOPIA_DIRECTIONS.map(dir => {
               const response = questionnaire?.responses.find(answer => answer.direction === dir.key);
-              const value = !response ? "未測量" : response.no_diplopia ? "× 無複視" : `${formatNumber(response.onset_angle_deg, 2)}°`;
-              return `<div><dt>${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</dt><dd>${value}${response?.no_diplopia ? " / No diplopia" : ""}</dd></div>`;
+              const limit = Number.isFinite(response?.tested_limit_deg) ? ` (≥ ${formatNumber(response.tested_limit_deg, 2)}°)` : "";
+              const value = !response ? "未測量" : response.no_diplopia ? `× 無複視 / No diplopia${limit}` : `${formatNumber(response.onset_angle_deg, 2)}°`;
+              return `<div><dt>${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</dt><dd>${value}</dd></div>`;
             }).join("")}
           </dl>
-          <p class="field-hint">${bilingual("角度以正前方為 0°，依填答時的螢幕尺寸及觀看距離換算。這是中心到單側起點的角度；訓練範圍顯示的是兩側總角度。", "Angles are measured from straight ahead (0°), using the display dimensions and viewing distance recorded with the report. Each value is a one-sided angle from center; training spans show the total angle between opposite sides.")}</p>
+          <p class="field-hint">${bilingual("角度以正前方為 0°，依填答時的螢幕尺寸及觀看距離換算。這是中心到單側起點的角度；訓練範圍顯示的是兩側總角度。「≥」表示移到該方向可測的最遠位置仍沒有複視。", "Angles are measured from straight ahead (0°), using the display dimensions and viewing distance recorded with the report. Each value is a one-sided angle from center; training spans show the total angle between opposite sides. \"≥\" means no diplopia up to the furthest testable position in that direction.")}</p>
           ${questionnaire?.source_module === "manual" ? '<button class="secondary-button" type="button" data-export-diplopia>匯出複視 JSON / Export report JSON</button>' : ""}
         </section>`;
     }
 
     function showDiplopiaQuestionnaire(displayElement, session, onSubmit, onCancel) {
       const startedAt = new Date().toISOString();
-      let stimulusType = session.stimulus?.type || session.settings?.stimulusType || "white_dot";
-      if (!Object.hasOwn(STIMULUS_TYPES, stimulusType)) stimulusType = "white_dot";
-      const styleOptions = () => Object.keys(STIMULUS_TYPES).map((key, index) =>
-        `<option value="${key}" ${key === stimulusType ? "selected" : ""}>${["白點", "白點中有紅點", "數字球"][index]} / ${STIMULUS_TYPES[key].name}</option>`).join("");
       displayElement.innerHTML = `
         <section class="app-page" lang="zh-Hant" aria-labelledby="diplopia-title">
           <div class="app-shell diplopia-shell">
             <h1 id="diplopia-title" tabindex="-1">複視位置問卷 / Diplopia report</h1>
             <p class="lede">${session.module === "manual" ? "主動填寫 / Manual report" : `${MODULES[session.module].code} 已完成 / Completed · 累計練習 / Completed practices: ${session.diplopia_schedule.completed_practice_count}`} · 受試者 / Participant: ${escapeHtml(session.subject_id)}</p>
-            <p id="diplopia-instructions">${bilingual("請保持頭部與距離穩定，沿八個方向分別移動視標，標示開始出現複視的位置。可全螢幕拖曳、移動滑桿或輸入百分比；沒有複視請勾選「× 無複視」。", "Keep your head and viewing distance steady. Move the target along each of the eight directions and mark where double vision begins. Drag in fullscreen, use the slider, or enter a percentage. Select No diplopia if none occurs.")}</p>
+            <p id="diplopia-instructions">${bilingual(`請用雙眼觀看，頭部保持不動並維持觀看距離，只用眼睛跟著視標。問卷使用 BSV 檢查的白色小視標（Goldmann III，${formatNumber(DIPLOPIA_TARGET_ARCMIN / 60, 2)}°）。每個方向按「自動移動」後，視標會在中心停 ${DIPLOPIA_SWEEP_LEAD_MS / 1000} 秒，再以每秒 ${DIPLOPIA_SWEEP_DEG_PER_SEC}° 等速往外移；第一次看到兩個視標時，立刻按空白鍵或點一下畫面，該位置就是複視起點。移到最遠仍是一個視標，會記為「× 無複視」。也可以自己從中心慢慢拖曳、移動滑桿或輸入百分比。從「上」開始依順時針完成八個方向，按「下一個方向」後，已完成的方向會縮成白色小點。`, `Look with both eyes, keep your head still at the same viewing distance, and follow the target with your eyes only. The report uses the small white BSV target (Goldmann III, ${formatNumber(DIPLOPIA_TARGET_ARCMIN / 60, 2)}°). For each direction, select Auto sweep: the target holds at the center for ${DIPLOPIA_SWEEP_LEAD_MS / 1000} s, then moves outward at a constant ${DIPLOPIA_SWEEP_DEG_PER_SEC}° per second. The first time you see two targets, press Space or tap the screen: that is where diplopia begins. If the target is still single at the furthest position, it is recorded as No diplopia. You can also drag slowly from the center, use the slider or enter a percentage. Work clockwise from Up through all eight directions. After you select Next direction, finished directions shrink to small white dots.`)}</p>
             <p class="field-hint">${bilingual("中心為 0%，扣除視標半徑後的最大可顯示位置為 100%，與 Pursuit、Saccade、Fixation 的範圍上限共用計算。此處角度為中心到起點的單側角度，八個方向皆需填答。", "The center is 0%; 100% is the furthest target-center position with room for the target radius, using the same span limits as Pursuit, Saccade and Fixation. Reported angles run from center to onset on one side. Complete all eight directions.")}</p>
             <form id="diplopia-form" novalidate aria-describedby="diplopia-instructions">
-              <label for="diplopia-stimulus-type">視標樣式 / Target style</label>
-              <select id="diplopia-stimulus-type">${styleOptions()}</select>
               <div class="diplopia-layout">
                 <figure id="diplopia-figure" class="diplopia-figure">
                   <svg id="diplopia-chart" viewBox="0 0 480 480" role="img" aria-label="八方向複視位置圖，亦可使用各方向的輸入欄位填答">
                     <g id="diplopia-background"></g>
+                    <g id="diplopia-field-outline"></g>
                     ${DIPLOPIA_DIRECTIONS.map(dir => `<g data-diplopia-marker="${dir.key}"></g>`).join("")}
                   </svg>
-                  <figcaption>● 複視起點 / Onset　× 無複視 / No diplopia</figcaption>
+                  <figcaption>● 測試中 / Testing　• 複視起點 / Onset　× 無複視 / No diplopia　▢ 雙眼單一視野 / BSV field</figcaption>
                   <button id="diplopia-open-picker" class="secondary-button" type="button">全螢幕標記 / Mark in fullscreen</button>
                   <button id="diplopia-toggle-controls" class="secondary-button diplopia-toggle-controls" type="button" hidden aria-expanded="true">隱藏操作列 / Hide controls</button>
                   <div id="diplopia-picker-controls" class="diplopia-picker-controls" hidden>
-                    <p>${bilingual("沿方向線拖曳視標，找出開始複視的位置。", "Drag the target along a direction to find where double vision begins.")}</p>
-                    <label for="diplopia-picker-stimulus-type">視標樣式 / Target style</label>
-                    <select id="diplopia-picker-stimulus-type">${styleOptions()}</select>
                     <div class="diplopia-picker-row">
-                      <label for="diplopia-picker-direction">方向 / Direction</label>
-                      <select id="diplopia-picker-direction">${DIPLOPIA_DIRECTIONS.map(dir => `<option value="${dir.key}">${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</option>`).join("")}</select>
+                      <label class="sr-only" for="diplopia-picker-direction">方向 / Direction</label>
+                      <select id="diplopia-picker-direction">${DIPLOPIA_TEST_ORDER.map(key => DIPLOPIA_DIRECTIONS.find(dir => dir.key === key)).map(dir => `<option value="${dir.key}">${dir.label} / ${DIRECTION_ENGLISH_LABELS[dir.key]}</option>`).join("")}</select>
+                      <span id="diplopia-picker-progress" role="status">0 / 8</span>
                       <output id="diplopia-picker-value" aria-live="polite">尚未標記</output>
                     </div>
                     <label class="sr-only" for="diplopia-picker-slider">所選方向的複視起點（%）</label>
                     <input id="diplopia-picker-slider" type="range" min="0" max="100" step="0.1" value="0" />
                     <div class="diplopia-picker-row">
-                      <label class="diplopia-none" for="diplopia-picker-none"><input id="diplopia-picker-none" type="checkbox" /> 無複視 / No diplopia</label>
-                      <span id="diplopia-picker-progress" role="status">0 / 8</span>
-                      <button id="diplopia-marking-done" class="secondary-button" type="button">檢查八方向答案 / Review answers</button>
+                      <button id="diplopia-auto-sweep" class="primary-button" type="button">▶ 自動移動 / Auto sweep</button>
+                      <button id="diplopia-next-direction" class="secondary-button" type="button">下一個方向 / Next direction</button>
                     </div>
+                    <p id="diplopia-picker-hint" class="diplopia-picker-hint" role="status">${DIPLOPIA_PICKER_GUIDE}</p>
+                    <div class="diplopia-picker-row">
+                      <label class="diplopia-none" for="diplopia-picker-none"><input id="diplopia-picker-none" type="checkbox" /> 無複視 / No diplopia</label>
+                    </div>
+                    <button id="diplopia-marking-done" class="secondary-button" type="button">檢查八方向答案 / Review answers</button>
                   </div>
                 </figure>
                 <div class="diplopia-fields">
@@ -3601,8 +3693,6 @@
       const slider = displayElement.querySelector("#diplopia-picker-slider");
       const pickerNone = displayElement.querySelector("#diplopia-picker-none");
       const toggleControls = displayElement.querySelector("#diplopia-toggle-controls");
-      const styleInput = displayElement.querySelector("#diplopia-stimulus-type");
-      const pickerStyleInput = displayElement.querySelector("#diplopia-picker-stimulus-type");
       const fields = DIPLOPIA_DIRECTIONS.map(dir => ({
         ...dir,
         input: form.querySelector(`#diplopia-${dir.key}`),
@@ -3610,47 +3700,150 @@
         angle: form.querySelector(`#diplopia-angle-${dir.key}`),
         marker: chart.querySelector(`[data-diplopia-marker="${dir.key}"]`)
       }));
+      const orderedFields = DIPLOPIA_TEST_ORDER.map(key => fields.find(field => field.key === key));
+      const outline = displayElement.querySelector("#diplopia-field-outline");
+      const pickerHint = displayElement.querySelector("#diplopia-picker-hint");
+      const reviewButton = displayElement.querySelector("#diplopia-marking-done");
+      const sweepButton = displayElement.querySelector("#diplopia-auto-sweep");
+      const nextButton = displayElement.querySelector("#diplopia-next-direction");
       let pickerOpen = false;
-      let selected = fields[0];
+      let selected = orderedFields[0];
       let drag = null;
-      let targetColor = VOR_COLORS[0];
-      let targetDigit = 0;
+      let sweep = null;
+      // Answers the sweep recorded, so a later drag, slider or typed correction is reported as an adjusted sweep.
+      const sweptAnswers = new Map();
+      const answerKey = field => field.none.checked ? "none" : field.input.value;
       let chartGeometry = { width: 480, height: 480, cx: 240, cy: 240, rx: 190, ry: 190 };
-      const targetMarkup = (x, y) => {
+      const targetRadii = () => {
         const geometry = diplopiaGeometry(session);
         const scale = pickerOpen ? 1 : Math.min(380 / (geometry.rx * 2 || 1), 380 / (geometry.ry * 2 || 1));
-        const rx = geometry.targetWidth / 2 * scale;
-        const ry = geometry.targetHeight / 2 * scale;
-        return `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="${stimulusType === "numbers_dot" ? targetColor : "#ffffff"}" />`
-          + (stimulusType === "red_in_white" ? `<ellipse cx="${x}" cy="${y}" rx="${rx * .32}" ry="${ry * .32}" fill="#ef4444" />` : "")
-          + (stimulusType === "numbers_dot" ? `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(rx, ry) * 1.1}" font-weight="950" fill="${contrastingText(targetColor)}">${targetDigit}</text>` : "");
+        return { rx: geometry.targetWidth / 2 * scale, ry: geometry.targetHeight / 2 * scale };
+      };
+      // Like the Goldmann light spot, the questionnaire target is always a plain white dot.
+      const targetMarkup = (x, y) => {
+        const { rx, ry } = targetRadii();
+        return `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" fill="#ffffff" />`;
+      };
+      // Finished directions shrink to a small dot so they do not cover the direction being tested.
+      const doneDotMarkup = (x, y) => {
+        const { rx, ry } = targetRadii();
+        return `<circle cx="${x}" cy="${y}" r="${Math.min(DIPLOPIA_DONE_DOT_RADIUS, rx, ry)}" class="diplopia-done-dot" />`;
       };
       const hasPosition = field => field.input.value.trim() !== "" && Number.isFinite(Number(field.input.value))
         && Number(field.input.value) >= 0 && Number(field.input.value) <= 100;
+      const isAnswered = field => field.none.checked || hasPosition(field);
+      const chartPoint = field => {
+        const fraction = field.none.checked ? 1 : Number(field.input.value) / 100;
+        return { x: chartGeometry.cx + field.x * chartGeometry.rx * fraction, y: chartGeometry.cy + field.y * chartGeometry.ry * fraction };
+      };
+      const limitText = field => `≥ ${formatNumber(diplopiaAngleDeg(field, 100, session), 2)}°`;
       const update = (clearError = true) => {
         let answered = 0;
         fields.forEach(field => {
           field.input.disabled = field.none.checked;
           const valid = hasPosition(field);
           if (field.none.checked || valid) answered++;
-          const fraction = field.none.checked ? 1 : Number(field.input.value) / 100;
-          const x = chartGeometry.cx + field.x * chartGeometry.rx * fraction;
-          const y = chartGeometry.cy + field.y * chartGeometry.ry * fraction;
-          field.marker.innerHTML = field.none.checked
+          const { x, y } = chartPoint(field);
+          // The full target is only needed while a direction is being tested; the review chart shows answers as dots.
+          field.marker.innerHTML = sweep?.field === field
+            ? targetMarkup(chartGeometry.cx + field.x * chartGeometry.rx * sweep.percent / 100, chartGeometry.cy + field.y * chartGeometry.ry * sweep.percent / 100)
+            : field.none.checked
             ? `<path d="M ${x - 6} ${y - 6} l 12 12 M ${x + 6} ${y - 6} l -12 12" class="diplopia-mark" />`
-            : valid ? targetMarkup(x, y) : field === selected ? targetMarkup(chartGeometry.cx, chartGeometry.cy) : "";
-          field.angle.textContent = field.none.checked ? "× 無複視 / No diplopia"
+            : field === selected && (pickerOpen || !valid) ? targetMarkup(valid ? x : chartGeometry.cx, valid ? y : chartGeometry.cy)
+            : valid ? doneDotMarkup(x, y) : "";
+          field.angle.textContent = field.none.checked ? `× 無複視 / No diplopia (${limitText(field)})`
             : valid ? `複視起點 / Onset ${formatNumber(diplopiaAngleDeg(field, Number(field.input.value), session), 2)}°` : "尚未標記 / Not marked";
         });
+        // Clinical BSV charts outline the single-vision area; only draw it in the review chart once all eight are known.
+        outline.innerHTML = !pickerOpen && answered === fields.length
+          ? `<polygon points="${orderedFields.map(field => { const { x, y } = chartPoint(field); return `${x},${y}`; }).join(" ")}" class="diplopia-field-outline" />`
+          : "";
         displayElement.querySelector("#diplopia-progress").textContent = `已填答 / Answered ${answered} / 8`;
         displayElement.querySelector("#diplopia-picker-progress").textContent = `${answered} / 8`;
         directionInput.value = selected.key;
         slider.value = hasPosition(selected) ? selected.input.value : "0";
         slider.disabled = selected.none.checked;
         pickerNone.checked = selected.none.checked;
-        displayElement.querySelector("#diplopia-picker-value").textContent = selected.none.checked ? "× 無複視 / No diplopia"
+        displayElement.querySelector("#diplopia-picker-value").textContent = selected.none.checked ? `× 無複視 / No diplopia (${limitText(selected)})`
           : hasPosition(selected) ? `${selected.input.value}% · ${selected.angle.textContent}` : "尚未標記 / Not marked";
-        if (clearError) setError(error, "");
+        if (clearError) {
+          setError(error, "");
+          // Rewriting identical text would make screen readers repeat the status on every slider step.
+          if (pickerHint.textContent !== DIPLOPIA_PICKER_GUIDE) pickerHint.textContent = DIPLOPIA_PICKER_GUIDE;
+        }
+      };
+      const nextDirection = () => {
+        if (!isAnswered(selected)) {
+          pickerHint.textContent = `請先用「自動移動」測「${selected.label} / ${DIRECTION_ENGLISH_LABELS[selected.key]}」，或標記開始看到兩個視標的位置、勾選「無複視」。 / Run Auto sweep, mark where you first see two targets, or select No diplopia.`;
+          sweepButton.focus();
+          return;
+        }
+        const start = orderedFields.indexOf(selected);
+        const next = orderedFields.map((_, step) => orderedFields[(start + step + 1) % orderedFields.length]).find(field => !isAnswered(field));
+        if (!next) {
+          update();
+          pickerHint.textContent = "八個方向都已完成，請按「檢查八方向答案」確認。 / All eight directions are done. Select Review answers.";
+          reviewButton.focus();
+          return;
+        }
+        selected = next;
+        update();
+        pickerHint.textContent = `現在測試「${next.label} / ${DIRECTION_ENGLISH_LABELS[next.key]}」：按「自動移動」開始。 / Now testing ${DIRECTION_ENGLISH_LABELS[next.key]}: select Auto sweep to start.`;
+        sweepButton.focus();
+      };
+      const sweepPercent = () => diplopiaPercentForAngle(sweep.field,
+        DIPLOPIA_SWEEP_DEG_PER_SEC * Math.max(0, performance.now() - sweep.startedAt - DIPLOPIA_SWEEP_LEAD_MS) / 1000, session);
+      const stopSweep = () => {
+        const stopped = sweep;
+        if (!stopped) return null;
+        cancelAnimationFrame(stopped.frame);
+        sweep = null;
+        figure.classList.toggle("is-sweeping", false);
+        return stopped;
+      };
+      // An interrupted sweep restores whatever that direction held before it started.
+      const cancelSweep = () => {
+        const stopped = stopSweep();
+        if (!stopped) return;
+        stopped.field.input.value = stopped.previous.value;
+        stopped.field.none.checked = stopped.previous.none;
+        update();
+      };
+      const finishSweep = sawTwo => {
+        if (!sweep) return;
+        const percent = Math.min(100, sweepPercent());
+        const { field } = stopSweep();
+        field.none.checked = !sawTwo;
+        field.input.value = sawTwo ? String(Math.round(percent * 10) / 10) : "";
+        sweptAnswers.set(field, answerKey(field));
+        update();
+        const name = `「${field.label} / ${DIRECTION_ENGLISH_LABELS[field.key]}」`;
+        const angle = sawTwo ? `${formatNumber(diplopiaAngleDeg(field, Number(field.input.value), session), 2)}°` : "";
+        pickerHint.textContent = sawTwo
+          ? `${name}在 ${angle} 開始看到兩個。可拖曳視標或用滑桿往回微調，再按「下一個方向」；也可再按「自動移動」重測。 / ${DIRECTION_ENGLISH_LABELS[field.key]}: two targets from ${angle}. Drag the target or use the slider to adjust, then select Next direction, or Auto sweep to retest.`
+          : `${name}移到最遠仍是一個視標，已記為「無複視」。 / ${DIRECTION_ENGLISH_LABELS[field.key]}: still single at the furthest position, recorded as No diplopia.`;
+        nextButton.focus();
+      };
+      const sweepFrame = () => {
+        if (!sweep) return;
+        sweep.percent = sweepPercent();
+        if (sweep.percent >= 100) {
+          finishSweep(false);
+          return;
+        }
+        update(false);
+        sweep.frame = requestAnimationFrame(sweepFrame);
+      };
+      const startSweep = () => {
+        if (!pickerOpen || sweep) return;
+        sweep = { field: selected, startedAt: performance.now(), percent: 0, frame: 0,
+          previous: { value: selected.input.value, none: selected.none.checked } };
+        selected.input.value = "";
+        selected.none.checked = false;
+        // The controls hide like they do while dragging, so the moving target never passes under them.
+        figure.classList.toggle("is-sweeping", true);
+        update();
+        sweep.frame = requestAnimationFrame(sweepFrame);
       };
       const renderChart = () => {
         chartGeometry = pickerOpen
@@ -3665,6 +3858,7 @@
         update();
       };
       const setPickerOpen = open => {
+        if (!open) cancelSweep();
         pickerOpen = open;
         figure.classList.toggle("is-fullscreen-picker", open);
         controls.hidden = !open;
@@ -3674,9 +3868,8 @@
         openButton.hidden = open;
         displayElement.querySelector(".diplopia-fields").inert = open;
         displayElement.querySelector(".diplopia-submit-actions").inert = open;
-        styleInput.inert = open;
         renderChart();
-        if (open) directionInput.focus({ preventScroll: true });
+        if (open) sweepButton.focus({ preventScroll: true });
         else openButton.focus({ preventScroll: true });
       };
       toggleControls.addEventListener("click", () => {
@@ -3693,24 +3886,13 @@
           session.viewport = { width: window.innerWidth, height: window.innerHeight };
           session.screen_pixels = currentScreenPixels();
           fields.forEach(field => { field.input.value = ""; field.none.checked = false; });
+          sweptAnswers.clear();
         }
         setPickerOpen(true);
       });
-      [styleInput, pickerStyleInput].forEach(input => input.addEventListener("change", () => {
-        stimulusType = Object.hasOwn(STIMULUS_TYPES, input.value) ? input.value : "white_dot";
-        styleInput.value = pickerStyleInput.value = stimulusType;
-        update();
-      }));
-      const numberTimer = setInterval(() => {
-        if (stimulusType !== "numbers_dot") return;
-        let color, digit;
-        do color = VOR_COLORS[Math.floor(Math.random() * VOR_COLORS.length)]; while (color === targetColor);
-        do digit = Math.floor(Math.random() * 10); while (digit === targetDigit);
-        targetColor = color;
-        targetDigit = digit;
-        update(false);
-      }, session.settings?.changeMs || session.stimulus?.change_ms || 500);
-      displayElement.querySelector("#diplopia-marking-done").addEventListener("click", () => {
+      nextButton.addEventListener("click", nextDirection);
+      sweepButton.addEventListener("click", startSweep);
+      reviewButton.addEventListener("click", () => {
         setPickerOpen(false);
         void exitFullscreenSafely();
         openButton.focus({ preventScroll: true });
@@ -3730,8 +3912,12 @@
         update();
       });
       fields.forEach(field => {
-        field.input.addEventListener("input", update);
+        field.input.addEventListener("input", () => {
+          selected = field;
+          update();
+        });
         field.none.addEventListener("change", () => {
+          selected = field;
           field.input.value = "";
           update();
         });
@@ -3762,6 +3948,12 @@
       };
       chart.addEventListener("pointerdown", event => {
         if (event.isPrimary === false || event.button > 0) return;
+        if (sweep) {
+          // During a sweep, a tap anywhere is the "I see two" response.
+          event.preventDefault();
+          finishSweep(true);
+          return;
+        }
         const point = localPoint(event);
         if (!point) return;
         event.preventDefault();
@@ -3803,6 +3995,18 @@
         }
       };
       const onPickerKeyDown = event => {
+        if (sweep && (event.key === " " || event.key === "Enter")) {
+          event.preventDefault();
+          if (!event.repeat) finishSweep(true);
+          return;
+        }
+        if (sweep && event.key === "Escape") {
+          event.preventDefault();
+          cancelSweep();
+          pickerHint.textContent = "已停止自動移動，這個方向維持原本的答案。 / Auto sweep stopped; this direction keeps its previous answer.";
+          sweepButton.focus();
+          return;
+        }
         if (event.key === "Escape" && pickerOpen) { setPickerOpen(false); void exitFullscreenSafely(); }
       };
       document.addEventListener("fullscreenchange", onPickerFullscreenChange);
@@ -3810,7 +4014,7 @@
       window.addEventListener("resize", onPickerResize);
       let submitted = false;
       const cleanup = () => {
-        clearInterval(numberTimer);
+        stopSweep();
         document.removeEventListener("fullscreenchange", onPickerFullscreenChange);
         document.removeEventListener("keydown", onPickerKeyDown);
         window.removeEventListener("resize", onPickerResize);
@@ -3839,20 +4043,25 @@
           viewport: { ...session.viewport },
           screen_pixels: { ...session.screen_pixels },
           calibration: { ...session.calibration },
-          stimulus: { type: stimulusType, arcmin: session.stimulus?.arcmin || session.settings?.ballArcmin || 60,
-            width_px: diplopiaGeometry(session).targetWidth, height_px: diplopiaGeometry(session).targetHeight,
-            change_ms: session.settings?.changeMs || session.stimulus?.change_ms || 500 },
+          stimulus: { type: "white_dot", arcmin: DIPLOPIA_TARGET_ARCMIN, size_reference: "Goldmann III",
+            width_px: diplopiaGeometry(session).targetWidth, height_px: diplopiaGeometry(session).targetHeight },
+          sweep_speed_deg_per_sec: DIPLOPIA_SWEEP_DEG_PER_SEC,
+          sweep_lead_ms: DIPLOPIA_SWEEP_LEAD_MS,
           angle_reference: "Degrees from straight ahead: atan2(radial screen offset in cm, viewing distance in cm)",
           responses: fields.map(field => {
             const fraction = field.none.checked ? null : Number(field.input.value) / 100;
             const point = fraction === null ? null : diplopiaPoint(field, Number(field.input.value), session);
             return {
               direction: field.key,
+              method: !sweptAnswers.has(field) ? "manual"
+                : sweptAnswers.get(field) === answerKey(field) ? "auto_sweep" : "auto_sweep_adjusted",
               no_diplopia: field.none.checked,
               onset_percent: fraction === null ? null : Number(field.input.value),
               onset_angle_deg: fraction === null ? null : diplopiaAngleDeg(field, Number(field.input.value), session),
               onset_x_norm: point === null ? null : point.x / session.viewport.width,
-              onset_y_norm: point === null ? null : point.y / session.viewport.height
+              onset_y_norm: point === null ? null : point.y / session.viewport.height,
+              // Furthest testable angle; with no diplopia the single-vision field reaches at least this far.
+              tested_limit_deg: diplopiaAngleDeg(field, 100, session)
             };
           })
         });
@@ -4066,7 +4275,7 @@
         ...(trialData.diplopiaQuestionnaire ? [
           `# Diplopia Questionnaire: ${JSON.stringify(trialData.diplopiaQuestionnaire)}`,
           ...trialData.diplopiaQuestionnaire.responses.map(response =>
-            `# Diplopia ${DIRECTION_ENGLISH_LABELS[response.direction]}: ${response.no_diplopia ? "X (no diplopia)" : `angle_deg=${response.onset_angle_deg}; onset=${response.onset_percent}%; x_normalized=${response.onset_x_norm}; y_normalized=${response.onset_y_norm}`}`)
+            `# Diplopia ${DIRECTION_ENGLISH_LABELS[response.direction]}: ${response.no_diplopia ? "X (no diplopia)" : `angle_deg=${response.onset_angle_deg}; onset=${response.onset_percent}%; x_normalized=${response.onset_x_norm}; y_normalized=${response.onset_y_norm}`}${Number.isFinite(response.tested_limit_deg) ? `; tested_limit_deg=${response.tested_limit_deg}` : ""}${response.method ? `; method=${response.method}` : ""}`)
         ] : []),
         `# ------------------------------------------------------------`
       ];
@@ -4160,10 +4369,13 @@
         const usesTobii = eyeTracking.source === EYE_SOURCE_TOBII;
         const usesWebGazer = eyeTracking.source === EYE_SOURCE_WEBGAZER;
         const usesHeadTracking = moduleKey === "vor" && Number(settings.vorGain) > 1;
+        const usesHeadWarning = needsHeadPositionWarning(moduleKey);
+        const headMonitor = usesHeadWarning ? new HeadPositionMonitor() : null;
         const usesGazeTracking = usesTobii || usesWebGazer;
         let activeTrialCapture = null;
         if (usesTobii) activeTrialCapture = beginTobiiTrial(sessionId);
         else if (usesWebGazer) activeTrialCapture = beginWebGazerTrial(sessionId);
+        if (activeTrialCapture && usesHeadWarning) activeTrialCapture.waitingForHeadCenter = true;
 
         let unsubscribeWebgazer = null;
         if (usesWebGazer) {
@@ -4239,6 +4451,7 @@
         displayElement.innerHTML = `
           <section id="training-stage" class="training-stage" role="application" aria-label="${module.code} ${module.name} training in progress">
             <div id="training-stimulus" class="stimulus"><span id="stimulus-number" class="stimulus-number"></span></div>
+            ${usesHeadWarning ? '<div id="head-position-warning" class="head-position-warning" hidden aria-hidden="true"></div><p id="head-position-status" class="head-position-status" role="status">請將頭部置中並保持穩定 / Center your head and hold still.</p><span id="head-position-announcement" class="sr-only" role="status"></span>' : ""}
             ${usesHeadTracking ? '<p id="vor-head-status" role="status" style="position:absolute;top:24px;left:24px;right:24px;text-align:center">Look straight ahead while head tracking starts.</p>' : ""}
             <span class="sr-only">Training has started. Press Escape to stop.</span>
           </section>`;
@@ -4246,6 +4459,9 @@
         const stage = displayElement.querySelector("#training-stage");
         const stimulus = displayElement.querySelector("#training-stimulus");
         const number = displayElement.querySelector("#stimulus-number");
+        const headWarning = usesHeadWarning ? displayElement.querySelector("#head-position-warning") : null;
+        const headStatus = usesHeadWarning ? displayElement.querySelector("#head-position-status") : null;
+        const headAnnouncement = usesHeadWarning ? displayElement.querySelector("#head-position-announcement") : null;
         const readStageViewport = () => {
           const bounds = stage.getBoundingClientRect();
           return {
@@ -4272,12 +4488,15 @@
         let currentHeadPose = null;
         let vorPositionUpdatedAt = null;
         const headTrackingStartedAt = performance.now();
-        const readHeadPose = () => {
+        const readHeadSample = (maxAge = 500) => {
           const tracker = window.webgazer?.getTracker?.();
-          if (!Number.isFinite(tracker?.positionsTimestamp) || performance.now() - tracker.positionsTimestamp > 500) return null;
-          return vorHeadPose(tracker.getPositions?.());
+          const age = performance.now() - tracker?.positionsTimestamp;
+          if (!Number.isFinite(age) || age < 0 || age > maxAge) return null;
+          const pose = vorHeadPose(tracker.getPositions?.());
+          return pose ? { pose, timestamp: tracker.positionsTimestamp } : null;
         };
-        if (usesHeadTracking && !usesWebGazer) {
+        const readHeadPose = () => readHeadSample()?.pose || null;
+        if ((usesHeadTracking || usesHeadWarning) && !usesWebGazer) {
           try { this.jsPsych.extensions.webgazer?.resume(); } catch (error) { /* Startup checks report unavailable tracking. */ }
         }
 
@@ -4524,7 +4743,9 @@
             try { unsubscribeWebgazer(); } catch (e) {}
             unsubscribeWebgazer = null;
           }
-          if ((usesWebGazer || usesHeadTracking) && window.webgazer) {
+          if (headWarning) headWarning.hidden = true;
+          if (headAnnouncement) headAnnouncement.textContent = "";
+          if ((usesWebGazer || usesHeadTracking || usesHeadWarning) && window.webgazer) {
             try { window.webgazer.pause(); } catch (e) {}
           }
           const gazeCapture = usesTobii
@@ -4877,6 +5098,20 @@
           }
         };
 
+        const updateHeadWarning = (now) => {
+          const sample = readHeadSample(250);
+          const wasWarning = headMonitor.warning;
+          headMonitor.update(sample?.pose, sample?.timestamp);
+          headWarning.hidden = !headMonitor.warning;
+          headStatus.hidden = Boolean(sample);
+          if (!sample) headStatus.textContent = "頭位追蹤暫時中斷，請面向攝影機 / Head tracking unavailable. Face the camera.";
+          if (wasWarning !== headMonitor.warning) {
+            headAnnouncement.textContent = headMonitor.warning ? "請將頭部轉回正中 / Return your head to center." : "";
+            logEvent(headMonitor.warning ? "head_position_warning_on" : "head_position_warning_off", now,
+              { deviation_deg: headMonitor.deviationDeg, tracking_available: Boolean(sample) });
+          }
+        };
+
         const tick = (now) => {
           if (ended) return;
           frameCount += 1;
@@ -4890,6 +5125,7 @@
             endTrial("duration_complete");
             return;
           }
+          if (usesHeadWarning) updateHeadWarning(now);
           if (moduleKey === "vor") tickVor(now);
           else if (moduleKey === "saccade") tickSaccade(now);
           else tickExcursion(now);
@@ -4919,6 +5155,17 @@
 
         const startSession = (now) => {
           if (ended) return;
+          if (usesHeadWarning) {
+            const sample = readHeadSample(250);
+            headMonitor.update(sample?.pose, sample?.timestamp);
+            if (!headMonitor.ready) {
+              if (now - headTrackingStartedAt >= 10000) endTrial("head_tracking_unavailable");
+              else rafId = requestAnimationFrame(startSession);
+              return;
+            }
+            headStatus.hidden = true;
+            logEvent("head_position_center", now, { ...headMonitor.neutral, threshold_deg: 3 });
+          }
           if (usesHeadTracking) {
             neutralHeadPose = readHeadPose();
             if (!neutralHeadPose) {
@@ -4933,6 +5180,10 @@
           }
           refreshViewportGeometry();
           sessionStart = now;
+          if (activeTrialCapture && usesHeadWarning) {
+            activeTrialCapture.waitingForHeadCenter = false;
+            activeTrialCapture.startedPerformance = now;
+          }
           // Fullscreen and dynamic viewport units can emit resize events after
           // the stage is mounted. They are layout settling, not user aborts.
           viewportSettlesAt = now + 1000;
@@ -5285,8 +5536,8 @@
     const tobiiTrainingTrial = makeTrainingTrial(EYE_SOURCE_TOBII);
 
     function fallBackToUntrackedSession(reason) {
-      if (pendingVorHeadTracking()) {
-        AppState.lastSession = { module: "vor", end_reason: "head_tracking_unavailable", actual_duration_ms: 0 };
+      if (pendingHeadTracking()) {
+        AppState.lastSession = { module: AppState.pending.module, end_reason: "head_tracking_unavailable", actual_duration_ms: 0 };
         AppState.pending = null;
       }
       if (AppState.pending) {
@@ -5326,7 +5577,7 @@
               }
             }
           }],
-          conditional_function: () => !AppState.eyeTracking.initialized || pendingVorHeadTracking()
+          conditional_function: () => !AppState.eyeTracking.initialized || pendingHeadTracking()
         },
         {
           timeline: [
@@ -5377,6 +5628,7 @@
               }],
               conditional_function: () => Boolean(
                 AppState.pending &&
+                AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER &&
                 AppState.pending.eyeTrackingEnabled &&
                 AppState.eyeTracking.initialized &&
                 (!AppState.eyeTracking.calibrated || AppState.eyeTracking.needsRecalibration)
@@ -5389,6 +5641,7 @@
               }],
               conditional_function: () => Boolean(
                 AppState.pending &&
+                AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER &&
                 AppState.pending.eyeTrackingEnabled &&
                 AppState.eyeTracking.initialized
               )
@@ -5397,6 +5650,7 @@
           loop_function: () => Boolean(AppState.eyeTracking.needsRecalibration),
           conditional_function: () => Boolean(
             AppState.pending &&
+            AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER &&
             AppState.pending.eyeTrackingEnabled &&
             AppState.eyeTracking.initialized
           )
@@ -5404,7 +5658,7 @@
       ],
       conditional_function: () => Boolean(
         AppState.pending &&
-        ((AppState.pending.eyeTrackingEnabled && AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER) || pendingVorHeadTracking())
+        ((AppState.pending.eyeTrackingEnabled && AppState.pending.eyeTrackingSource === EYE_SOURCE_WEBGAZER) || pendingHeadTracking())
       )
     } : { timeline: [], conditional_function: () => false };
 

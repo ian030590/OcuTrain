@@ -1061,6 +1061,37 @@
       contain: strict;
     }
 
+    .head-position-warning {
+      position: absolute;
+      z-index: 4;
+      inset: 0;
+      border: 3px solid #ff3030;
+      box-shadow: inset 0 0 32px 10px rgba(255, 30, 30, .75);
+      pointer-events: none;
+      animation: head-position-pulse 1.4s ease-in-out infinite;
+    }
+
+    .head-position-warning[hidden] { display: none; }
+
+    .head-position-status {
+      position: absolute;
+      z-index: 5;
+      top: max(24px, env(safe-area-inset-top));
+      left: 24px;
+      right: 24px;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    @keyframes head-position-pulse {
+      0%, 100% { opacity: .35; }
+      50% { opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .head-position-warning { animation: none; opacity: .85; }
+    }
+
     .training-meta {
       position: absolute;
       z-index: 3;
@@ -1242,18 +1273,24 @@
     .diplopia-figure.is-fullscreen-picker { position: fixed; inset: 0; z-index: 2000; width: 100%; height: 100dvh; max-width: none; margin: 0; background: var(--bg); }
     .is-fullscreen-picker #diplopia-chart { width: 100%; height: 100%; }
     .is-fullscreen-picker figcaption { display: none; }
-    .diplopia-picker-controls { position: absolute; left: 14px; top: 12%; width: min(420px, calc(100% - 28px)); max-height: calc(38dvh - 20px); overflow: auto; overscroll-behavior: contain; padding: 14px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--panel); }
+    .diplopia-picker-controls { position: absolute; left: 14px; top: 12%; width: min(440px, calc(100% - 28px)); max-height: calc(38dvh - 20px); overflow: auto; overscroll-behavior: contain; padding: 14px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--panel); }
     .diplopia-toggle-controls { position: absolute; top: 12px; left: 70%; transform: translateX(-50%); min-height: 44px; padding: 8px 12px; }
     .diplopia-picker-controls[hidden] { display: none; }
     .diplopia-figure button[hidden] { display: none; }
-    .is-dragging .diplopia-picker-controls, .is-dragging .diplopia-toggle-controls { visibility: hidden; pointer-events: none; }
+    .is-dragging .diplopia-picker-controls, .is-dragging .diplopia-toggle-controls,
+    .is-sweeping .diplopia-picker-controls, .is-sweeping .diplopia-toggle-controls { visibility: hidden; pointer-events: none; }
     .diplopia-picker-controls p { margin: 0 0 10px; font-size: 14px; }
     .diplopia-picker-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .diplopia-picker-row select { min-height: 44px; width: auto; max-width: 100%; }
-    #diplopia-stimulus-type, #diplopia-picker-stimulus-type { display: block; width: 100%; min-height: 44px; margin: 6px 0 12px; }
+    .diplopia-picker-controls .diplopia-picker-row { margin-top: 8px; }
+    .diplopia-picker-controls > .diplopia-picker-row:first-child { margin-top: 0; }
     .diplopia-picker-row output { flex: 1; min-width: 140px; font-size: 13px; color: var(--text); }
     #diplopia-picker-slider { display: block; width: 100%; min-height: 44px; margin: 6px 0; accent-color: var(--text); }
-    #diplopia-marking-done { min-height: 44px; padding: 8px 12px; }
+    #diplopia-marking-done, #diplopia-next-direction, #diplopia-auto-sweep { min-height: 44px; padding: 8px 12px; }
+    #diplopia-auto-sweep { width: auto; font-size: 13px; }
+    #diplopia-marking-done { margin-top: 8px; }
+    .diplopia-picker-controls .diplopia-picker-hint { margin: 8px 0 0; color: var(--text); font-size: 13px; }
+    .diplopia-picker-controls .diplopia-picker-hint:empty { display: none; }
     @media (max-width: 520px) {
       .diplopia-picker-controls { top: 10%; padding: 10px; }
       .diplopia-picker-controls p { font-size: 12px; }
@@ -1262,6 +1299,8 @@
     .diplopia-ray { stroke: var(--line-strong); stroke-width: 2; }
     .diplopia-direction-label { fill: var(--text); font-size: 17px; text-anchor: middle; dominant-baseline: middle; }
     .diplopia-mark { fill: none; stroke: currentColor; stroke-width: 3; }
+    .diplopia-done-dot { fill: #ffffff; }
+    .diplopia-field-outline { fill: rgba(255, 255, 255, .08); stroke: var(--text); stroke-width: 2; stroke-linejoin: round; }
     .diplopia-figure figcaption { color: var(--muted); text-align: center; line-height: 1.6; }
     .diplopia-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .diplopia-field { min-width: 0; margin: 0; padding: 10px; border: 1px solid var(--line-strong); border-radius: 6px; }

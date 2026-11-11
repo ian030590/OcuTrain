@@ -92,11 +92,13 @@ function loadApp({ native = true, connected = true, injectedClient = null, clock
       targetFitError, saveStoredModuleSettings, readStoredModuleSettings,
       recordCompletedPractice, readDiplopiaProgress, diplopiaAngleDeg, updateSubjectId, tobiiStatusText,
       installMonocularWebGazerModels, vorHeadPose, vorTargetPoint, pendingVorHeadTracking,
+      HeadPositionMonitor, pendingHeadTracking,
       fallBackToUntrackedSession, targetSpanLayout, targetSpanLimits, diplopiaGeometry, diplopiaPoint,
+      diplopiaPercentForAngle, DIPLOPIA_TARGET_ARCMIN, DIPLOPIA_SWEEP_DEG_PER_SEC, DIPLOPIA_SWEEP_LEAD_MS,
       showDiplopiaQuestionnaire, StageInstructionPlugin, MenuPlugin };
     jsPsych.run([`), context);
   return { window, document, jsPsych, timers, frames, savedCsvs, alerts, storage, api: window.testApi,
-    setNow: value => { now = value; },
+    getNow: () => now, setNow: value => { now = value; },
     emit: payload => handlers.get({ status: "tobii-status", eyes: "tobii-eyes" }[payload.type] || "tobii-gaze")({ payload }),
     runTimer(delay) {
       const entry = [...timers].find(([, timer]) => timer.delay === delay);
@@ -199,7 +201,7 @@ test("the injected bridge client binds its events once", () => {
   assert.equal(app.api.AppState.tobii.activeTrial.samples.length, 1);
 });
 
-function startTraining(app, source = "tobii", { module = "vor", settings = {}, calibrationValues = {}, completeQuestionnaire = true } = {}) {
+function startTraining(app, source = "tobii", { module = "vor", settings = {}, calibrationValues = {}, completeQuestionnaire = true, establishHeadCenter = true } = {}) {
   const stage = { getBoundingClientRect: () => ({ width: 1920, height: 1080 }) };
   const stimulus = { style: { setProperty(name, value) { this[name] = value; }, removeProperty(name) { delete this[name]; } }, classList: { add() {}, remove() {}, toggle() {} } };
   const number = { style: { setProperty() {} } };
@@ -219,6 +221,16 @@ function startTraining(app, source = "tobii", { module = "vor", settings = {}, c
   const display = { innerHTML: "", querySelector: selector => ({
     "#training-stage": stage, "#training-stimulus": stimulus, "#stimulus-number": number
   })[selector] || element(selector) };
+  const startsAt = app.getNow();
+  let headTracker;
+  if (module !== "vor" && establishHeadCenter) {
+    app.window.webgazer ||= { resume() {}, pause() {} };
+    headTracker = app.window.webgazer.getTracker?.() || { getPositions: () => faceMeshPose() };
+    app.window.webgazer.getTracker = () => headTracker;
+    app.jsPsych.extensions.webgazer ||= { resume() {}, pause() {} };
+    app.setNow(startsAt - 600);
+    headTracker.positionsTimestamp = startsAt - 600;
+  }
   app.api.AppState.eyeTracking.source = source;
   let result;
   app.jsPsych.finishTrial = value => { result = value; };
@@ -228,6 +240,13 @@ function startTraining(app, source = "tobii", { module = "vor", settings = {}, c
     eye_tracking: { source, enabled: source !== "off" }, fullscreen_entered: true
   });
   app.runFrame();
+  if (headTracker) {
+    for (let time = startsAt - 500; time <= startsAt; time += 100) {
+      headTracker.positionsTimestamp = time;
+      app.setNow(time);
+      app.runFrame();
+    }
+  }
   const submit = () => element("#diplopia-form").handlers.submit({ preventDefault() {} });
   const finish = () => {
     app.runTimer((settings.totalSec || 1) * 1000);
@@ -403,6 +422,206 @@ test("the diplopia slider and no-diplopia toggle update the same persisted answe
   assert.equal(finish.field('#diplopia-leftDown').value, '');
 });
 
+test("finished diplopia directions shrink to small dots while Next follows the clockwise BSV order", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  finish();
+  const direction = finish.field("#diplopia-picker-direction");
+  const slider = finish.field("#diplopia-picker-slider");
+  const pickerNone = finish.field("#diplopia-picker-none");
+  const next = finish.field("#diplopia-next-direction");
+  const hint = finish.field("#diplopia-picker-hint");
+  const marker = key => finish.field(`[data-diplopia-marker="${key}"]`).innerHTML;
+  assert.equal(direction.value, "middleUp");
+  assert.match(marker("middleUp"), /<ellipse cx="960" cy="540"/, "each meridian starts at fixation");
+
+  next.handlers.click();
+  assert.equal(direction.value, "middleUp", "an unanswered direction cannot be skipped");
+  assert.match(hint.textContent, /上/);
+  slider.value = "40"; slider.handlers.input();
+  assert.match(marker("middleUp"), /<ellipse/);
+  const sweepButton = finish.field("#diplopia-auto-sweep");
+  sweepButton.focused = false;
+  next.handlers.click();
+  assert.equal(direction.value, "rightUp");
+  assert.match(hint.textContent, /右上/);
+  assert.equal(sweepButton.focused, true, "the next direction is ready to sweep");
+  assert.doesNotMatch(marker("middleUp"), /<ellipse/);
+  assert.match(marker("middleUp"), /<circle [^>]*r="4" class="diplopia-done-dot"/);
+  assert.match(marker("rightUp"), /<ellipse cx="960" cy="540"/);
+
+  const right = finish.field("#diplopia-rightMiddle");
+  right.value = "30"; right.handlers.input();
+  assert.match(marker("rightMiddle"), /<ellipse/, "typing a value tests that direction");
+  assert.equal(marker("rightUp"), "");
+  direction.value = "rightUp"; direction.handlers.change();
+  pickerNone.checked = true; pickerNone.handlers.change();
+  next.handlers.click();
+  assert.equal(direction.value, "rightDown", "answered directions are skipped");
+  assert.match(marker("rightMiddle"), /diplopia-done-dot/);
+  assert.match(marker("rightUp"), /<path/);
+
+  for (const key of ["rightDown", "middleDown", "leftDown", "leftMiddle", "leftUp"]) {
+    assert.equal(direction.value, key);
+    slider.value = "55"; slider.handlers.input();
+    next.handlers.click();
+  }
+  assert.match(hint.textContent, /八個方向都已完成/);
+  assert.equal(finish.field("#diplopia-marking-done").focused, true);
+  const shown = ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"]
+    .filter(key => /<ellipse/.test(marker(key)));
+  assert.deepEqual(shown, ["leftUp"], "only the last tested direction keeps the full target");
+});
+
+test("no-diplopia answers keep the tested limit and the review chart outlines the BSV field", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  finish();
+  const outline = finish.field("#diplopia-field-outline");
+  const directions = ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"];
+  for (const key of directions) {
+    const none = finish.field(`#no-diplopia-${key}`);
+    none.checked = true;
+    none.handlers.change();
+  }
+  assert.equal(outline.innerHTML, "", "fullscreen testing shows no extra outline");
+  finish.field("#diplopia-marking-done").handlers.click();
+  assert.match(outline.innerHTML, /<polygon points="240,50 430,50 430,240 430,430 240,430 50,430 50,240 50,50"/);
+  assert.match(finish.field("#diplopia-angle-rightMiddle").textContent, /無複視.*≥ \d+(\.\d+)?°/);
+  const right = finish.field("#diplopia-rightMiddle");
+  const rightNone = finish.field("#no-diplopia-rightMiddle");
+  rightNone.checked = false; rightNone.handlers.change();
+  assert.equal(outline.innerHTML, "", "the outline waits for all eight answers");
+  right.value = "50"; right.handlers.input();
+  assert.match(outline.innerHTML, /335,240/);
+
+  finish.submitQuestionnaire();
+  const result = finish.result();
+  for (const response of result.diplopia_questionnaire.responses) {
+    const dir = { x: response.direction.startsWith("left") ? -1 : response.direction.startsWith("right") ? 1 : 0,
+      y: response.direction.endsWith("Up") ? -1 : response.direction.endsWith("Down") ? 1 : 0 };
+    assert.equal(response.tested_limit_deg, app.api.diplopiaAngleDeg(dir, 100, result));
+  }
+  const up = result.diplopia_questionnaire.responses.find(response => response.direction === "middleUp");
+  const csv = app.savedCsvs[0].content;
+  assert.match(csv, new RegExp(`# Diplopia Up: X \\(no diplopia\\); tested_limit_deg=${up.tested_limit_deg}`));
+  assert.match(csv, /# Diplopia Right: angle_deg=[\d.]+; onset=50%; .*; tested_limit_deg=[\d.]+/);
+  assert.match(app.api.sessionBanner(result), /No diplopia \(≥ \d+(\.\d+)?°\)/);
+});
+
+test("auto sweep moves the small BSV target outward at a constant angular speed and records the response", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "off", { completeQuestionnaire: false });
+  const documentHandlers = new Map();
+  app.document.addEventListener = (type, handler) => documentHandlers.set(type, handler);
+  const classes = new Set();
+  finish.field("#diplopia-figure").classList = { toggle(name, on) { if (on) classes.add(name); else classes.delete(name); } };
+  finish();
+  const session = { calibration: app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm: 60 }),
+    viewport: { width: 1920, height: 1080 }, screen_pixels: { width: 1920, height: 1080 } };
+  const lead = app.api.DIPLOPIA_SWEEP_LEAD_MS;
+  const speed = app.api.DIPLOPIA_SWEEP_DEG_PER_SEC;
+  assert.equal(speed, 2, "the BSV sweep moves at 2°/s");
+  const sweepButton = finish.field("#diplopia-auto-sweep");
+  const next = finish.field("#diplopia-next-direction");
+  const hint = finish.field("#diplopia-picker-hint");
+  const keydown = key => {
+    const event = { key, repeat: false, preventDefault() { this.prevented = true; } };
+    documentHandlers.get("keydown")(event);
+    return event;
+  };
+  const marker = key => finish.field(`[data-diplopia-marker="${key}"]`).innerHTML;
+  const runSweepFrame = () => { const [id, callback] = [...app.frames].at(-1); app.frames.delete(id); callback(); };
+  const offsetPx = (deg, pxPerCm) => 60 * Math.tan(deg * Math.PI / 180) * pxPerCm;
+
+  assert.equal(sweepButton.focused, true, "fullscreen opens ready to sweep");
+  const rx = Number(marker("middleUp").match(/rx="([\d.]+)"/)[1]);
+  assert.ok(Math.abs(rx - app.api.diplopiaGeometry(session).targetWidth / 2) < 1e-9, "the 60′ training ball is not used");
+  assert.ok(rx < 10);
+
+  app.setNow(5000);
+  sweepButton.handlers.click();
+  assert.ok(classes.has("is-sweeping"), "controls hide so the target never passes under them");
+  app.setNow(5000 + lead - 1);
+  runSweepFrame();
+  assert.match(marker("middleUp"), /<ellipse cx="960" cy="540"/, "the target holds at fixation first");
+  for (const seconds of [2, 4]) {
+    app.setNow(5000 + lead + seconds * 1000);
+    runSweepFrame();
+    const cy = Number(marker("middleUp").match(/cy="([\d.]+)"/)[1]);
+    assert.ok(Math.abs(540 - cy - offsetPx(speed * seconds, 1080 / 30)) < 1e-6, `${speed * seconds}° after ${seconds} s`);
+  }
+  app.setNow(5000 + lead + 3000);
+  assert.equal(keydown(" ").prevented, true, "Space answers instead of pressing the focused button");
+  assert.equal(classes.has("is-sweeping"), false);
+  const up = Number(finish.field("#diplopia-middleUp").value);
+  assert.equal(up, Math.round(app.api.diplopiaPercentForAngle({ x: 0, y: -1 }, speed * 3, session) * 10) / 10);
+  assert.ok(Math.abs(app.api.diplopiaAngleDeg({ x: 0, y: -1 }, up, session) - speed * 3) < .05);
+  assert.match(hint.textContent, /開始看到兩個.*微調/);
+  assert.equal(next.focused, true);
+  const slider = finish.field("#diplopia-picker-slider");
+  assert.equal(slider.disabled, false, "the pressed position stays adjustable");
+  assert.equal(slider.value, String(up));
+  const adjustedUp = String(Math.round((up - 1.5) * 10) / 10);
+  slider.value = adjustedUp; slider.handlers.input();
+  assert.equal(finish.field("#diplopia-middleUp").value, adjustedUp, "the slider moves the answer back");
+  assert.match(marker("middleUp"), new RegExp(`cy="${540 - app.api.diplopiaGeometry(session).ry * Number(adjustedUp) / 100}"`));
+
+  next.handlers.click();
+  app.setNow(20000);
+  sweepButton.handlers.click();
+  app.setNow(20000 + lead + 60000);
+  runSweepFrame();
+  assert.equal(finish.field("#no-diplopia-rightUp").checked, true, "still single at the edge is no diplopia");
+  assert.equal(classes.has("is-sweeping"), false);
+  assert.match(hint.textContent, /無複視/);
+
+  next.handlers.click();
+  app.setNow(30000);
+  sweepButton.handlers.click();
+  app.setNow(30000 + lead + 1000);
+  runSweepFrame();
+  finish.field("#diplopia-chart").handlers.pointerdown({ isPrimary: true, button: 0, pointerId: 1, clientX: 0, clientY: 0, preventDefault() {} });
+  const right = finish.field("#diplopia-rightMiddle").value;
+  assert.equal(Number(right), Math.round(app.api.diplopiaPercentForAngle({ x: 1, y: 0 }, speed, session) * 10) / 10, "a tap anywhere responds");
+  assert.equal(finish.field("#diplopia-leftUp").value, "", "the tap does not mark the direction under the pointer");
+
+  sweepButton.handlers.click();
+  assert.equal(finish.field("#diplopia-rightMiddle").value, "", "a retest starts from the center");
+  keydown("Escape");
+  assert.equal(finish.field("#diplopia-rightMiddle").value, right, "a stopped sweep keeps the previous answer");
+  assert.equal(classes.has("is-sweeping"), false);
+
+  const pointer = (x, type) => ({ clientX: x, clientY: 540, pointerId: 2, button: 0, type, preventDefault() {} });
+  const rightX = 960 + app.api.diplopiaGeometry(session).rx * Number(right) / 100;
+  const chart = finish.field("#diplopia-chart");
+  chart.handlers.pointerdown(pointer(rightX, "pointerdown"));
+  chart.handlers.pointermove(pointer(rightX - 40, "pointermove"));
+  chart.handlers.pointerup(pointer(rightX - 40, "pointerup"));
+  const draggedRight = Number(finish.field("#diplopia-rightMiddle").value);
+  assert.ok(draggedRight < Number(right), "dragging the target moves the answer back");
+
+  for (const key of ["rightDown", "middleDown", "leftDown", "leftMiddle", "leftUp"]) {
+    const none = finish.field(`#no-diplopia-${key}`);
+    none.checked = true;
+    none.handlers.change();
+  }
+  finish.submitQuestionnaire();
+  const questionnaire = finish.result().diplopia_questionnaire;
+  const method = key => questionnaire.responses.find(response => response.direction === key).method;
+  const response = key => questionnaire.responses.find(answer => answer.direction === key);
+  assert.equal(response("middleUp").onset_percent, Number(adjustedUp));
+  assert.equal(response("rightMiddle").onset_percent, draggedRight);
+  assert.equal(method("middleUp"), "auto_sweep_adjusted");
+  assert.equal(method("rightMiddle"), "auto_sweep_adjusted");
+  assert.equal(method("rightUp"), "auto_sweep");
+  assert.equal(method("leftUp"), "manual", "never swept");
+  assert.equal(questionnaire.sweep_speed_deg_per_sec, speed);
+  const csv = app.savedCsvs[0].content;
+  assert.match(csv, /# Diplopia Up: angle_deg=[\d.]+; .*; method=auto_sweep_adjusted/);
+  assert.match(csv, /# Diplopia Top-Right: X \(no diplopia\).*; method=auto_sweep\r?$/m);
+});
+
 test("Tobii distinguishes an empty stream from invalid SDK gaze and valid coordinates", async () => {
   const app = loadApp();
   await app.api.connectTobiiBridge();
@@ -463,15 +682,19 @@ test("questionnaire scheduling counts each participant across modules and local 
   assert.equal(sameDay.questionnaire_due, false);
 });
 
-test("diplopia endpoints equal each module's maximum span and angles remain one-sided", () => {
+test("diplopia endpoints equal each module's maximum span for the BSV target and angles remain one-sided", () => {
   const app = loadApp();
+  const bsvArcmin = app.api.DIPLOPIA_TARGET_ARCMIN;
+  assert.ok(Math.abs(bsvArcmin / 60 - .43) < .005, "Goldmann III subtends about 0.43°");
   for (const screen of [{ width: 1920, height: 1080 }, { width: 1280, height: 800 }]) {
     app.window.screen = screen;
     for (const viewingDistanceCm of [40, 60, 120]) {
-      for (const ballArcmin of [60, 300, 600]) {
+      // The training ball size must not change the questionnaire, which always uses the BSV target.
+      for (const trainingArcmin of [60, 300, 600]) {
+        const ballArcmin = bsvArcmin;
         const calibration = app.api.createCalibration({ screenWidthCm: 53, screenHeightCm: 30, viewingDistanceCm });
         const limits = app.api.targetSpanLimits({ ballArcmin }, calibration);
-        const session = { calibration, viewport: { ...screen }, screen_pixels: { ...screen }, stimulus: { arcmin: ballArcmin } };
+        const session = { calibration, viewport: { ...screen }, screen_pixels: { ...screen }, stimulus: { arcmin: trainingArcmin } };
         const diagonal = app.api.diplopiaPoint({ x: 1, y: 1 }, 100, session);
         for (const module of ["pursuit", "saccade", "fixation"]) {
           const layout = app.api.targetSpanLayout(module, { ballArcmin,
@@ -492,37 +715,24 @@ test("diplopia endpoints equal each module's maximum span and angles remain one-
   }
 });
 
-test("diplopia target styles share answers and metadata, and stop their number timer on submission", () => {
+test("the diplopia questionnaire always uses a plain white dot, even after numbers-dot training", () => {
   const app = loadApp();
+  // VOR trains with the numbers dot; the questionnaire must not inherit it.
   const finish = startTraining(app, "off", { completeQuestionnaire: false });
   finish();
-  const style = finish.field("#diplopia-picker-stimulus-type");
-  const marker = finish.field('[data-diplopia-marker="leftUp"]');
-  const numberTimer = [...app.timers.values()].find(timer => timer.delay === 500);
-  for (const type of ["white_dot", "red_in_white", "numbers_dot"]) {
-    style.value = type;
-    style.handlers.change();
-    assert.equal(finish.field("#diplopia-stimulus-type").value, type);
-    assert.match(marker.innerHTML, /<ellipse/);
-    if (type === "red_in_white") assert.match(marker.innerHTML, /fill="#ef4444"/);
-    if (type === "numbers_dot") {
-      const before = marker.innerHTML;
-      numberTimer.callback();
-      assert.notEqual(marker.innerHTML, before);
-      assert.match(marker.innerHTML, /<text/);
-    }
-  }
-  finish.submitQuestionnaire();
-  const error = finish.field("#diplopia-error").textContent;
-  numberTimer.callback();
-  assert.equal(finish.field("#diplopia-error").textContent, error, "number updates preserve missing-answer feedback");
+  assert.doesNotMatch(finish.display.innerHTML, /stimulus-type/, "no target style choice");
+  // The BSV sequence starts straight up, so that direction holds the full target first.
+  assert.match(finish.field('[data-diplopia-marker="middleUp"]').innerHTML, /^<ellipse [^>]*fill="#ffffff" \/>$/);
+  assert.ok(![...app.timers.values()].some(timer => timer.delay === 500), "no number or color changes");
   for (const direction of ["leftUp", "middleUp", "rightUp", "leftMiddle", "rightMiddle", "leftDown", "middleDown", "rightDown"]) {
     finish.field(`#no-diplopia-${direction}`).checked = true;
   }
   finish.submitQuestionnaire();
-  assert.equal(finish.result().diplopia_questionnaire.stimulus.type, "numbers_dot");
-  assert.equal(finish.result().diplopia_questionnaire.stimulus.arcmin, 60);
-  assert.ok(![...app.timers.values()].some(timer => timer.delay === 500));
+  const stimulus = finish.result().diplopia_questionnaire.stimulus;
+  assert.equal(stimulus.type, "white_dot");
+  assert.equal(stimulus.arcmin, app.api.DIPLOPIA_TARGET_ARCMIN, "not the 60′ training ball");
+  assert.equal(stimulus.size_reference, "Goldmann III");
+  assert.equal(stimulus.change_ms, undefined);
 });
 
 test("instruction cancellation clears pending work and exits recalibration loops", async () => {
@@ -649,17 +859,262 @@ function settingsForm(values) {
     ? { value: String(values[name]), dataset: { label: name } } : null } };
 }
 
-function faceMeshPose(yawDeg = 0, pitchDeg = 0) {
+function faceMeshPose(yawDeg = 0, pitchDeg = 0, rollDeg = 0) {
   const yaw = yawDeg * Math.PI / 180;
   const pitch = pitchDeg * Math.PI / 180;
+  const roll = rollDeg * Math.PI / 180;
   const mesh = [];
   for (const [index, x, y] of [[33, -50, 0], [263, 50, 0], [10, 0, -80], [152, 0, 80]]) {
     const z = y * Math.sin(pitch);
-    mesh[index] = [320 + x * Math.cos(yaw) + z * Math.sin(yaw),
-      240 + y * Math.cos(pitch), -x * Math.sin(yaw) + z * Math.cos(yaw)];
+    const horizontal = x * Math.cos(yaw) + z * Math.sin(yaw);
+    const vertical = y * Math.cos(pitch);
+    mesh[index] = [320 + horizontal * Math.cos(roll) - vertical * Math.sin(roll),
+      240 + horizontal * Math.sin(roll) + vertical * Math.cos(roll), -x * Math.sin(yaw) + z * Math.cos(yaw)];
   }
   return mesh;
 }
+
+const headPose = (yaw = 0, pitch = 0, roll = 0) => Object.fromEntries(
+  Object.entries({ yaw, pitch, roll }).map(([axis, degrees]) => [axis, degrees * Math.PI / 180]));
+
+function centeredMonitor(app, pose = headPose()) {
+  const monitor = new app.api.HeadPositionMonitor();
+  for (let time = 0; time <= 600; time += 100) monitor.update(pose, time);
+  assert.equal(monitor.ready, true);
+  return monitor;
+}
+
+test("head center requires stable distinct camera frames before timing can start", () => {
+  const app = loadApp();
+  const monitor = new app.api.HeadPositionMonitor();
+  for (let i = 0; i < 20; i++) monitor.update(headPose(), 0);
+  assert.equal(monitor.ready, false, "rendering the same inference is not additional evidence");
+  for (let time = 100; time <= 500; time += 100) monitor.update(headPose(time % 200 ? 2 : 0), time);
+  assert.equal(monitor.ready, false, "moving head cannot establish the center");
+  for (let time = 600; time <= 1300; time += 100) monitor.update(headPose(4, -2, 1), time);
+  assert.equal(monitor.ready, true);
+  assert.ok(Math.abs(monitor.neutral.yaw - headPose(4).yaw) < 1e-10);
+
+  const finish = startTraining(app, "off", { module: "pursuit", establishHeadCenter: false,
+    settings: { mode: "predictable", totalSec: 2, directions: ["rightMiddle"] } });
+  assert.equal([...app.timers.values()].some(timer => timer.delay === 2000), false);
+  const tracker = { positionsTimestamp: 1000, getPositions: () => faceMeshPose() };
+  app.window.webgazer = { getTracker: () => tracker, pause() {} };
+  for (let time = 1000; time <= 1600; time += 100) {
+    tracker.positionsTimestamp = time;
+    app.setNow(time);
+    app.runFrame();
+  }
+  assert.equal([...app.timers.values()].some(timer => timer.delay === 2000), true);
+  app.setNow(3600);
+  assert.equal(finish().actual_duration_ms, 2000);
+});
+
+test("Tobii gaze and per-eye exports begin after head centering, with the trial clock reset", () => {
+  const app = loadApp();
+  app.api.AppState.tobii.clockOffsetMs = 0;
+  const tracker = { positionsTimestamp: 1000, getPositions: () => faceMeshPose() };
+  app.window.webgazer = { getTracker: () => tracker, pause() {} };
+  app.jsPsych.extensions.webgazer = { resume() {} };
+  const finish = startTraining(app, "tobii", { module: "saccade", establishHeadCenter: false,
+    settings: { mode: "predictable", totalSec: 6, dwellMs: 1000, directions: ["rightMiddle"] } });
+  const eye = { valid: true, originMm: [30, 0, 600] };
+  for (let time = 1000; time < 1600; time += 100) {
+    tracker.positionsTimestamp = time;
+    app.setNow(time);
+    app.emit(gaze(.5, .5, true, time * 1000));
+    app.emit(eyes(time * 1000, eye, eye));
+    app.runFrame();
+  }
+  assert.equal(app.api.AppState.tobii.activeTrial.samples.length, 0);
+  assert.equal(app.api.AppState.tobii.activeTrial.eyeSamples.length, 0);
+  tracker.positionsTimestamp = 1600;
+  app.setNow(1600);
+  app.runFrame();
+  for (const time of [1600, 1630]) {
+    app.setNow(time);
+    app.emit(eyes(time * 1000, eye, eye));
+    app.emit(gaze(.5, .5, true, time * 1000));
+  }
+  const result = finish();
+  const samples = JSON.parse(result.gaze_path);
+  assert.equal(result.gaze_sample_count, 2);
+  assert.equal(result.per_eye.eye_sample_count, 2);
+  assert.deepEqual(samples.map(sample => sample.browser_trial_time_ms), [0, 30]);
+  assert.deepEqual(csvRows(app).map(row => Number(row.trial_time_ms)), [0, 30]);
+});
+
+test("missing head tracking times out before training starts and exports no baseline data", () => {
+  const app = loadApp();
+  const finish = startTraining(app, "tobii", { module: "fixation", establishHeadCenter: false,
+    settings: { mode: "predictable", totalSec: 6, directions: ["rightMiddle"] } });
+  app.emit(gaze(.5, .5, true, 1000000));
+  assert.equal([...app.timers.values()].some(timer => timer.delay === 6000), false);
+  app.setNow(11000);
+  app.runFrame();
+  const result = finish.result();
+  assert.equal(result.end_reason, "head_tracking_unavailable");
+  assert.equal(result.actual_duration_ms, 0);
+  assert.equal(result.gaze_sample_count, 0);
+  assert.equal(result.per_eye.eye_sample_count, 0);
+});
+
+test("head warning rejects isolated spikes and requires sustained deviation beyond three degrees", () => {
+  const app = loadApp();
+  const monitor = centeredMonitor(app);
+  for (let time = 700; time <= 1900; time += 100) {
+    monitor.update(headPose(time === 1000 ? 25 : time % 200 ? 2 : -2), time);
+    assert.equal(monitor.warning, false);
+  }
+  for (let time = 2000; time <= 3200; time += 100) monitor.update(headPose(2.99), time);
+  assert.equal(monitor.warning, false);
+  for (let time = 3300; time <= 3500; time += 100) monitor.update(headPose(5), time);
+  assert.equal(monitor.warning, false, "a short excursion must not flash the border");
+  for (let time = 3600; time <= 4400; time += 100) monitor.update(headPose(5), time);
+  assert.equal(monitor.warning, true);
+  for (let time = 4500; time <= 5600; time += 100) monitor.update(headPose(2.6), time);
+  assert.equal(monitor.warning, true, "hysteresis prevents threshold chatter");
+  for (let time = 5700; time <= 5900; time += 100) monitor.update(headPose(), time);
+  assert.equal(monitor.warning, true, "brief recovery does not flicker the warning");
+  for (let time = 6000; time <= 6800; time += 100) monitor.update(headPose(), time);
+  assert.equal(monitor.warning, false);
+});
+
+test("head warning covers signed yaw, pitch, roll and combined deviations relative to its fixed center", () => {
+  const app = loadApp();
+  const neutral = headPose(5, -3, 1);
+  for (const offset of [[4, 0, 0], [-4, 0, 0], [0, 4, 0], [0, -4, 0], [0, 0, 4], [0, 0, -4], [2.2, 2.2, 0]]) {
+    const monitor = centeredMonitor(app, neutral);
+    const pose = headPose(5 + offset[0], -3 + offset[1], 1 + offset[2]);
+    for (let time = 700; time <= 2100; time += 100) monitor.update(pose, time);
+    assert.equal(monitor.warning, true, `offset ${offset}`);
+    assert.ok(Math.abs(monitor.neutral.yaw - neutral.yaw) < 1e-10, "never follow a shifted head by recentering");
+  }
+  for (const degrees of [-5, 5]) {
+    const pose = app.api.vorHeadPose(faceMeshPose(0, 0, degrees));
+    assert.ok(Math.abs(pose.roll - degrees * Math.PI / 180) < 1e-10);
+  }
+});
+
+test("lost or duplicate head samples cannot complete warning dwell or replace the neutral center", () => {
+  const monitor = centeredMonitor(loadApp());
+  monitor.update(headPose(10), 700);
+  for (let i = 0; i < 50; i++) monitor.update(headPose(10), 700);
+  assert.equal(monitor.warning, false);
+  monitor.update(headPose(10), 1100);
+  assert.equal(monitor.warning, false, "a camera gap breaks continuity");
+  for (let time = 1200; time <= 1900; time += 100) monitor.update(headPose(10), time);
+  assert.equal(monitor.warning, true);
+  const neutral = monitor.neutral;
+  monitor.update(null, 2000);
+  assert.equal(monitor.warning, false);
+  assert.equal(monitor.neutral, neutral);
+  for (let time = 2100; time <= 2300; time += 100) monitor.update(headPose(10), time);
+  assert.equal(monitor.warning, false);
+  for (let time = 2400; time <= 2900; time += 100) monitor.update(headPose(10), time);
+  assert.equal(monitor.warning, true, "reacquisition compares against the original center");
+});
+
+for (const module of ["pursuit", "saccade", "fixation"]) {
+  for (const source of ["off", "tobii", "webgazer"]) {
+    test(`${module} warns on head movement with ${source}, clears stale warnings and pauses the camera`, () => {
+      const app = loadApp();
+      let positions = faceMeshPose();
+      let paused = 0;
+      const tracker = { getPositions: () => positions };
+      app.window.webgazer = { getTracker: () => tracker, resume() {}, pause() { paused++; } };
+      app.jsPsych.extensions.webgazer = { resume() {}, pause() {}, onGazeUpdate: () => () => {} };
+      const finish = startTraining(app, source, { module, settings: { mode: "predictable", totalSec: 6,
+        dwellMs: 500, speedArcminSec: 300, holdSec: 1, directions: ["rightMiddle"] } });
+      const warning = finish.field("#head-position-warning");
+      assert.equal(warning.hidden, true);
+      positions = faceMeshPose(6);
+      for (let time = 1100; time <= 2100; time += 100) {
+        tracker.positionsTimestamp = time;
+        app.setNow(time);
+        app.runFrame();
+      }
+      assert.equal(warning.hidden, false);
+      assert.match(finish.display.innerHTML, /head-position-warning/);
+      app.setNow(2400);
+      app.runFrame();
+      assert.equal(warning.hidden, true);
+      assert.equal(finish.field("#head-position-status").hidden, false);
+      assert.equal(finish.result(), undefined, "temporary pose loss does not alter the stimulus session");
+      finish();
+      assert.equal(paused, 1);
+    });
+  }
+}
+
+test("head camera setup covers all warning modules and sources without calibrating Tobii gaze through WebGazer", () => {
+  const app = loadApp({ webgazerAvailable: true });
+  const setup = app.jsPsych.timeline[1].timeline[1];
+  for (const module of ["pursuit", "saccade", "fixation"]) {
+    for (const source of ["off", "tobii", "webgazer"]) {
+      app.api.AppState.pending = { module, settings: {}, eyeTrackingSource: source, eyeTrackingEnabled: source !== "off" };
+      app.api.AppState.eyeTracking.initialized = true;
+      assert.equal(app.api.pendingHeadTracking(), true);
+      assert.equal(setup.conditional_function(), true);
+      assert.equal(setup.timeline[0].conditional_function(), true, "reposition before each session");
+      assert.equal(setup.timeline[1].conditional_function(), source === "webgazer");
+      app.api.fallBackToUntrackedSession("Camera unavailable");
+      assert.equal(app.api.AppState.pending, null, "camera failure must not silently disable the warning");
+      assert.equal(app.api.AppState.lastSession.module, module);
+      assert.equal(app.api.AppState.lastSession.end_reason, "head_tracking_unavailable");
+    }
+  }
+  app.api.AppState.pending = { module: "vor", settings: { vorGain: 1 }, eyeTrackingSource: "off" };
+  assert.equal(app.api.pendingHeadTracking(), false);
+  assert.equal(setup.conditional_function(), false);
+});
+
+test("head-only camera positioning names each training and cancellation never proceeds without a warning", async () => {
+  for (const module of ["pursuit", "saccade", "fixation"]) {
+    for (const source of ["off", "tobii"]) {
+      const app = loadApp();
+      app.api.AppState.pending = { module, settings: {}, eyeTrackingSource: source, eyeTrackingEnabled: source !== "off" };
+      const tracker = { positionsTimestamp: 1000, getPositions: () => faceMeshPose() };
+      app.window.webgazer = { getTracker: () => tracker };
+      app.jsPsych.extensions.webgazer = { isInitialized: () => true,
+        showVideo() {}, hideVideo() {}, hidePredictions() {}, resume() {}, pause() {} };
+      const controls = new Map();
+      const display = { innerHTML: "", querySelector: selector => {
+        if (!controls.has(selector)) controls.set(selector, { addEventListener: (_, click) => { controls.get(selector).click = click; } });
+        return controls.get(selector);
+      } };
+      let result;
+      app.jsPsych.finishTrial = value => { result = value; };
+      new app.api.OptionalWebGazerCameraPlugin(app.jsPsych).trial(display, {});
+      await new Promise(setImmediate);
+      assert.match(display.innerHTML, new RegExp(`Continue to ${module.toUpperCase()}`));
+      assert.match(display.innerHTML, /Cancel training/);
+      assert.equal(controls.get("#webgazer-camera-continue").disabled, false);
+      controls.get("#webgazer-camera-skip").click();
+      assert.equal(result.ready, false);
+      app.api.fallBackToUntrackedSession(result.error);
+      assert.equal(app.api.AppState.pending, null);
+    }
+  }
+});
+
+test("VOR never renders a head-position warning even while turning the head", () => {
+  for (const vorGain of [1, 2]) {
+    const app = loadApp();
+    let positions = faceMeshPose();
+    const tracker = { positionsTimestamp: 1000, getPositions: () => positions };
+    app.window.webgazer = { getTracker: () => tracker, pause() {} };
+    app.jsPsych.extensions.webgazer = { resume() {} };
+    const finish = startTraining(app, "off", { settings: { vorGain, totalSec: 2 } });
+    positions = faceMeshPose(20, 10, 10);
+    tracker.positionsTimestamp = 1200;
+    app.setNow(1200);
+    app.runFrame();
+    assert.doesNotMatch(finish.display.innerHTML, /head-position-warning/);
+    assert.equal(finish.result(), undefined);
+    finish();
+  }
+});
 
 for (const source of ["tobii", "webgazer"]) {
   for (const vorGain of [1, 2]) {
