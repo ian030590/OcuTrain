@@ -131,7 +131,7 @@ npm run test:native
 
 Release 標題與 EXE 附件使用 `OcuTrain_<版本>_x64-portable.exe`，Git tag 使用 `v<版本>`。
 
-`v1.10.0` 新增三模組頭位警告、降噪判定與複視自動移動量測；完整變更見 [版本更新說明](RELEASE_NOTES.md)。
+`v1.10.1` 移除 30 天使用期限，程式可持續使用；完整變更見 [版本更新說明](RELEASE_NOTES.md)。
 
 `v1.6.0` 新增 VOR 1–2x 倍數、左右／上下方向及攝影機頭部角度控制。
 

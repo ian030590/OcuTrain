@@ -1,3 +1,13 @@
+# 1.10.1
+
+- 移除 30 天使用期限與系統時鐘回撥鎖定，程式不再顯示到期畫面。
+- 已被鎖定的使用者下載此版本後可直接使用，不需要解鎖碼，也不必清除資料。
+- 啟動時不再連線到外部時間服務。
+
+Windows x64 免安裝版：`OcuTrain_1.10.1_x64-portable.exe`（需 Microsoft Edge WebView2 Runtime）。
+
+請關閉舊程式後執行新版本，保留 EXE 旁原有 `Data/`。
+
 # 1.10.0
 
 - Pursuit、Saccade、Fixation 新增攝影機頭位追蹤。開始前收集至少 600 ms 的穩定正中姿勢，完成後才開始訓練計時；Eye tracking 為 Off 或 Tobii 時也需要攝影機。VOR 不套用頭位警告。
