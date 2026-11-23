@@ -1,2 +1,0 @@
-C:\Users\ian\Desktop\視覺復能program\TobiiOculomotor\bin\Release\net10.0-windows\win-x64\publish\TobiiEyeTrainer.pdb
-C:\Users\ian\Desktop\視覺復能program\TobiiOculomotor\bin\Release\net10.0-windows\win-x64\publish\TobiiEyeTrainer.exe
