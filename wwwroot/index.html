@@ -1356,50 +1356,10 @@
       max-width: 100%;
       line-height: 1.5;
     }
-
-    /* ── Lockout Screen ── */
-    #lockscreen {
-      display: none;
-      position: fixed;
-      inset: 0;
-      z-index: 999999;
-      background: #0b0b0b;
-      color: #fff;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 28px;
-      text-align: center;
-      padding: 40px;
-    }
-    #lockscreen.active { display: flex; }
-    #lockscreen .lock-icon { font-size: 72px; line-height: 1; }
-    #lockscreen h2 {
-      margin: 0;
-      font-size: clamp(20px, 3vw, 28px);
-      font-weight: 900;
-      color: #ff3b3b;
-      max-width: 540px;
-      line-height: 1.4;
-    }
-    #lockscreen p {
-      margin: 0;
-      color: #b8b8b8;
-      font-size: 14px;
-      max-width: 440px;
-      line-height: 1.7;
-    }
   </style>
 </head>
 <body>
   <main id="experiment-root" aria-live="polite"></main>
-
-  <!-- Lockout Screen -->
-  <div id="lockscreen">
-    <div class="lock-icon"><svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--danger, #ef4444); display:inline-block;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></div>
-    <h2>Access Period Expired</h2>
-    <p>The authorization period for this training program has ended.<br>To continue usage, please contact your vision specialist.</p>
-  </div>
 
   
   <script src="jspsych.js"></script>
